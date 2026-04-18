@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎥 jitsi-react
+# jitsi-react
 
 **A composable React SDK for Jitsi Meet with full UI customization**
 
@@ -15,36 +15,40 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 
 ---
 
-## ✨ Features
+## Features
 
-- 🧩 **Compound Components** — `<JitsiProvider>` manages the connection, child components plug in freely
-- 🎨 **Full Customization** — Default dark theme, `className`/`style` overrides, render props, or `asChild`
-- 📦 **30+ Components** — Video, audio, chat, recording, polls, screen share, admin, performance, and more
-- 🎯 **`asChild` Pattern** — Transfer behavior to your own elements (Radix UI-inspired)
-- 🪝 **`useJitsi()` Hook** — Full access to state & actions for headless implementations
-- 🏗️ **Pre-built UI** — `<JitsiMeeting>` component for instant, zero-config meetings
-- 📝 **TypeScript** — Full type definitions with generics and JSDoc
-- 📦 **Dual Output** — CJS + ESM + `.d.ts` declarations
+- **Compound Components** — `<JitsiProvider>` manages the connection, child components plug in freely
+- **Full Customization** — Default dark theme, `className`/`style` overrides, render props, or `asChild`
+- **30+ Components** — Video, audio, chat, recording, polls, screen share, admin, performance, and more
+- **`asChild` Pattern** — Transfer behavior to your own elements (Radix UI-inspired)
+- **`useJitsi()` Hook** — Full access to state & actions for headless implementations
+- **Pre-built UI** — `<JitsiMeeting>` component for instant, zero-config meetings
+- **TypeScript** — Full type definitions with generics and JSDoc
+- **Dual Output** — CJS + ESM + `.d.ts` declarations
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install jitsi-react
 ```
 
+These examples use JaaS domain, if you are self-hosting Jitsi, you should replace 8x8.vc with your domain.
+
 Add the lib-jitsi-meet script to your HTML:
 
 ```html
-<script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>
+<script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>
 ```
 
 > **Peer dependencies:** `react` ≥ 18, `react-dom` ≥ 18
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
+
+JaaS always requires a JWT when using lib-jitsi-meet directly. The "allow anonymous guests" feature only works with the IFrame API.
 
 ### Option 1: Pre-built Meeting UI
 
@@ -56,8 +60,10 @@ import { JitsiMeeting } from 'jitsi-react';
 function App() {
   return (
     <JitsiMeeting
-      domain="meet.jit.si"
+      domain="8x8.vc"
+      tenant="meeting" // App ID
       roomName="my-room"
+      jwt="token"
       userInfo={{ displayName: 'Alice' }}
       title="Team Standup"
     />
@@ -86,8 +92,10 @@ import {
 function MyMeeting() {
   return (
     <JitsiProvider
-      domain="meet.jit.si"
+      domain="8x8.vc"
+      tenant="meeting" // App ID
       roomName="my-room"
+      jwt="token"
       userInfo={{ displayName: 'Alice' }}
     >
       <header>
@@ -147,7 +155,7 @@ function CustomControls() {
 
 ---
 
-## 🎯 `asChild` Pattern
+## `asChild` Pattern
 
 All button components support `asChild`. When enabled, the component transfers its behavior (click handlers, aria attributes, data-state) to your child element:
 
@@ -181,7 +189,7 @@ All button components support `asChild`. When enabled, the component transfers i
 
 ---
 
-## 📚 API Reference
+## API Reference
 
 ### Core
 
@@ -269,7 +277,7 @@ All button components support `asChild`. When enabled, the component transfers i
 
 ---
 
-## 🪝 `useJitsi()` Hook
+## `useJitsi()` Hook
 
 The hook provides access to the complete conference state and all actions:
 
@@ -359,7 +367,7 @@ const {
 
 ---
 
-## 🎨 Customization Examples
+## Customization Examples
 
 ### Custom Video Layout
 
@@ -442,7 +450,7 @@ const {
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 JitsiProvider (Context + State Management)
@@ -463,7 +471,7 @@ Components (Consumer Layer)
 
 ---
 
-## 📋 Server Requirements
+## Server Requirements
 
 | Feature | Server Component | Notes |
 |---|---|---|
@@ -475,6 +483,6 @@ Components (Consumer Layer)
 
 ---
 
-## 📄 License
+## License
 
-MIT © [jitsi-react](https://github.com/jitsi-react)
+The MIT License (MIT). Please see [License File](LICENSE) for more information.
