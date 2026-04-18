@@ -35,7 +35,7 @@ export function ToggleRecording({ className, style, mode = 'file', recordingOpti
   }
 
   return (
-    <button className={`jr-btn ${isRecording ? 'jr-btn--muted' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${isRecording ? 'rj-btn--muted' : 'rj-btn--active'} ${className || ''}`}
       style={style} onClick={toggle} data-state={dataState} title={label} aria-label={label} type="button">
       {isRecording ? <StopRecordIcon /> : <RecordIcon />}
     </button>

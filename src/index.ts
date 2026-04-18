@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// jitsi-react — Composable React SDK for Jitsi Meet
+// react-jitsi — Composable React SDK for Jitsi Meet
 // ---------------------------------------------------------------------------
 
 // Styles (consumers must import this for default component styling)

@@ -60,7 +60,7 @@ export function ToggleAudio({ className, style, asChild, children }: ToggleAudio
 
   return (
     <button
-      className={`jr-btn ${audioMuted ? 'jr-btn--muted' : 'jr-btn--active'} ${className || ''}`}
+      className={`rj-btn ${audioMuted ? 'rj-btn--muted' : 'rj-btn--active'} ${className || ''}`}
       style={style}
       onClick={toggleAudio}
       data-state={dataState}

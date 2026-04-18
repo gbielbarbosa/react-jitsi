@@ -35,7 +35,7 @@ export function ScreenShareButton({ className, style, frameRate, asChild, childr
   }
 
   return (
-    <button className={`jr-btn ${isScreenSharing ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${isScreenSharing ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={style} onClick={toggle} data-state={dataState} title={label} aria-label={label} type="button">
       {isScreenSharing ? <StopShareIcon /> : <ScreenShareIcon />}
     </button>

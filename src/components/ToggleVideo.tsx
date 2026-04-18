@@ -22,7 +22,7 @@ export function ToggleVideo({ className, style, asChild, children }: ToggleVideo
   }
 
   return (
-    <button className={`jr-btn ${videoMuted ? 'jr-btn--muted' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${videoMuted ? 'rj-btn--muted' : 'rj-btn--active'} ${className || ''}`}
       style={style} onClick={toggleVideo} data-state={dataState} title={label} aria-label={label} type="button">
       {videoMuted ? <VideoOffIcon /> : <VideoOnIcon />}
     </button>

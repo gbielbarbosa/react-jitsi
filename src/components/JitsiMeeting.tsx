@@ -242,9 +242,11 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {!showPollCreator && (
                     <button type="button"
-                      style={{ padding: '8px 16px', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.2)',
+                      style={{
+                        padding: '8px 16px', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.2)',
                         backgroundColor: 'transparent', color: '#a5b4fc', cursor: 'pointer', fontSize: '13px',
-                        fontFamily: "'Inter', sans-serif" }}
+                        fontFamily: "'Inter', sans-serif"
+                      }}
                       onClick={() => setShowPollCreator(true)}>
                       + Create Poll
                     </button>
@@ -361,7 +363,7 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
  *
  * @example
  * ```tsx
- * import { JitsiMeeting } from 'jitsi-react';
+ * import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
  *
  * function App() {
  *   return (

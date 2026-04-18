@@ -1,5 +1,5 @@
 /**
- * Centralized SVG icon components for jitsi-react.
+ * Centralized SVG icon components for react-jitsi.
  * All icons are 20×20 unless specified otherwise.
  */
 import React from 'react';

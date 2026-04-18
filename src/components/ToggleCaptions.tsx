@@ -21,7 +21,7 @@ export function ToggleCaptions({ className, style, asChild, children }: ToggleCa
   }
 
   return (
-    <button className={`jr-btn ${captionsEnabled ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${captionsEnabled ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={style} onClick={toggleCaptions} data-state={dataState} title={label} aria-label={label} type="button">
       <CaptionsIcon />
     </button>

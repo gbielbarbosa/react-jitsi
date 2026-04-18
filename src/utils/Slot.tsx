@@ -61,7 +61,7 @@ export interface SlotProps extends React.HTMLAttributes<HTMLElement> {
  */
 export function Slot({ children, ...slotProps }: SlotProps) {
   if (!React.isValidElement(children)) {
-    console.warn('[jitsi-react] Slot requires a valid React element as children when using asChild.');
+    console.warn('[react-jitsi] Slot requires a valid React element as children when using asChild.');
     return null;
   }
 

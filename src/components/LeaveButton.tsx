@@ -30,7 +30,7 @@ export function LeaveButton({ className, style, label, confirmBeforeLeave = fals
   }
 
   return (
-    <button className={`${label ? 'jr-leave-btn' : 'jr-leave-btn jr-leave-btn--icon-only'} ${className || ''}`}
+    <button className={`${label ? 'rj-leave-btn' : 'rj-leave-btn rj-leave-btn--icon-only'} ${className || ''}`}
       style={style} onClick={handleLeave} title="Leave meeting" aria-label="Leave meeting" type="button">
       <PhoneOffIcon />{label && <span>{label}</span>}
     </button>

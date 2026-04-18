@@ -16,7 +16,7 @@ export function useJitsiContext(): JitsiContextValue {
 
   if (!ctx) {
     throw new Error(
-      '[jitsi-react] useJitsi() must be used within a <JitsiProvider>. ' +
+      '[react-jitsi] useJitsi() must be used within a <JitsiProvider>. ' +
       'Wrap your component tree with <JitsiProvider domain="..." roomName="...">.'
     );
   }

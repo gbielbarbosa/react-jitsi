@@ -36,7 +36,7 @@ function getJitsiMeetJS(): JitsiMeetJSStatic {
     // Check if the user loaded the IFrame API instead of lib-jitsi-meet
     if (g && g['JitsiMeetExternalAPI']) {
       throw new Error(
-        '[jitsi-react] Found JitsiMeetExternalAPI (IFrame API), but this SDK requires lib-jitsi-meet.\n' +
+        '[react-jitsi] Found JitsiMeetExternalAPI (IFrame API), but this SDK requires lib-jitsi-meet.\n' +
         'Please replace the external_api.js script with lib-jitsi-meet:\n\n' +
         '  For JaaS (8x8.vc):\n' +
         '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n' +
@@ -45,7 +45,7 @@ function getJitsiMeetJS(): JitsiMeetJSStatic {
       );
     }
     throw new Error(
-      '[jitsi-react] JitsiMeetJS is not available. ' +
+      '[react-jitsi] JitsiMeetJS is not available. ' +
       'Please load lib-jitsi-meet via a <script> tag before using <JitsiProvider>.\n\n' +
       '  For JaaS (8x8.vc):\n' +
       '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n' +
@@ -651,7 +651,7 @@ export function JitsiProvider({
           return Promise.all(tracks.map((t) => conference.addTrack(t)));
         })
         .catch((err: Error) => {
-          console.error('[jitsi-react] Error creating local tracks:', err);
+          console.error('[react-jitsi] Error creating local tracks:', err);
           callbacksRef.current.onError?.(err);
         });
     };

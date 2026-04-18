@@ -26,10 +26,10 @@ export function ToggleChat({ className, style, asChild, children }: ToggleChatPr
   }
 
   return (
-    <button className={`jr-btn ${isOpen ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${isOpen ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={{ position: 'relative', ...style }} onClick={toggle} data-state={dataState} title={label} aria-label={label} type="button">
       <ChatIcon />
-      {unreadCount > 0 && !isOpen && <span className="jr-badge jr-badge--danger">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+      {unreadCount > 0 && !isOpen && <span className="rj-badge rj-badge--danger">{unreadCount > 99 ? '99+' : unreadCount}</span>}
     </button>
   );
 }

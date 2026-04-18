@@ -1,6 +1,6 @@
 <div align="center">
 
-# jitsi-react
+# react-jitsi
 
 **A composable React SDK for Jitsi Meet with full UI customization**
 
@@ -31,7 +31,7 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 ## Installation
 
 ```bash
-npm install jitsi-react
+npm install @gbielbarbosa/react-jitsi
 ```
 
 These examples use JaaS domain, if you are self-hosting Jitsi, you should replace 8x8.vc with your domain.
@@ -55,7 +55,7 @@ JaaS always requires a JWT when using lib-jitsi-meet directly. The "allow anonym
 Zero-config, full-featured meeting interface:
 
 ```tsx
-import { JitsiMeeting } from 'jitsi-react';
+import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
 
 function App() {
   return (
@@ -87,7 +87,7 @@ import {
   ConnectionStatus,
   ParticipantList,
   ChatPanel,
-} from 'jitsi-react';
+} from '@gbielbarbosa/react-jitsi';
 
 function MyMeeting() {
   return (
@@ -129,7 +129,7 @@ function MyMeeting() {
 Full control with the hook:
 
 ```tsx
-import { JitsiProvider, useJitsi } from 'jitsi-react';
+import { JitsiProvider, useJitsi } from '@gbielbarbosa/react-jitsi';
 
 function CustomControls() {
   const {

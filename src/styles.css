@@ -1,7 +1,7 @@
 /**
- * jitsi-react — Centralized styles
+ * react-jitsi — Centralized styles
  * 
- * All styles use the `jr-` prefix (jitsi-react) to avoid conflicts.
+ * All styles use the `rj-` prefix (react-jitsi) to avoid conflicts.
  * Component inline styles have been extracted here for maintainability.
  */
 
@@ -9,7 +9,7 @@
 /* Base / Shared                  */
 /* ============================== */
 
-.jr-btn {
+.rj-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -24,23 +24,23 @@
   color: #fff;
 }
 
-.jr-btn--active {
+.rj-btn--active {
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-.jr-btn--muted {
+.rj-btn--muted {
   background-color: rgba(239, 68, 68, 0.9);
 }
 
-.jr-btn--accent {
+.rj-btn--accent {
   background-color: rgba(99, 102, 241, 0.9);
 }
 
-.jr-btn--success {
+.rj-btn--success {
   background-color: rgba(34, 197, 94, 0.9);
 }
 
-.jr-badge {
+.rj-badge {
   position: absolute;
   top: -2px;
   right: -2px;
@@ -56,11 +56,11 @@
   padding: 0 4px;
 }
 
-.jr-badge--danger {
+.rj-badge--danger {
   background-color: #ef4444;
 }
 
-.jr-badge--accent {
+.rj-badge--accent {
   background-color: #6366f1;
 }
 
@@ -68,7 +68,7 @@
 /* Form controls                  */
 /* ============================== */
 
-.jr-label {
+.rj-label {
   font-size: 12px;
   font-weight: 500;
   color: #a0a0b0;
@@ -77,7 +77,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-select {
+.rj-select {
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -89,7 +89,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-input {
+.rj-input {
   flex: 1;
   padding: 8px 12px;
   border-radius: 8px;
@@ -101,7 +101,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-send-btn {
+.rj-send-btn {
   padding: 8px 16px;
   border-radius: 8px;
   border: none;
@@ -113,14 +113,14 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-field-group {
+.rj-field-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-form-row {
+.rj-form-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -130,7 +130,7 @@
 /* Leave button                   */
 /* ============================== */
 
-.jr-leave-btn {
+.rj-leave-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -151,7 +151,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-leave-btn--icon-only {
+.rj-leave-btn--icon-only {
   padding-left: 0;
   padding-right: 0;
   width: 48px;
@@ -162,7 +162,7 @@
 /* Connection status              */
 /* ============================== */
 
-.jr-connection {
+.rj-connection {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -174,14 +174,14 @@
   color: #e0e0e0;
 }
 
-.jr-connection__dot {
+.rj-connection__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.jr-connection__count {
+.rj-connection__count {
   color: #9ca3af;
   margin-left: 4px;
 }
@@ -190,7 +190,7 @@
 /* Recording indicator            */
 /* ============================== */
 
-.jr-rec-indicator {
+.rj-rec-indicator {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -203,30 +203,37 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-rec-indicator__dot {
+.rj-rec-indicator__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: #ef4444;
-  animation: jr-rec-pulse 1.5s ease-in-out infinite;
+  animation: rj-rec-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes jr-rec-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+@keyframes rj-rec-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* ============================== */
 /* Local video                    */
 /* ============================== */
 
-.jr-local-video {
+.rj-local-video {
   position: relative;
   width: 100%;
   height: 100%;
 }
 
-.jr-local-video__video {
+.rj-local-video__video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -234,7 +241,7 @@
   background-color: #1a1a2e;
 }
 
-.jr-local-video__placeholder {
+.rj-local-video__placeholder {
   position: absolute;
   inset: 0;
   display: flex;
@@ -247,7 +254,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-avatar {
+.rj-avatar {
   width: 64px;
   height: 64px;
   border-radius: 50%;
@@ -260,7 +267,7 @@
   color: #fff;
 }
 
-.jr-avatar--sm {
+.rj-avatar--sm {
   width: 32px;
   height: 32px;
   font-size: 13px;
@@ -270,7 +277,7 @@
 /* Remote videos                  */
 /* ============================== */
 
-.jr-remote-grid {
+.rj-remote-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
@@ -278,7 +285,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-remote-tile {
+.rj-remote-tile {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
@@ -286,13 +293,13 @@
   aspect-ratio: 16 / 9;
 }
 
-.jr-remote-tile__video {
+.rj-remote-tile__video {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.jr-remote-tile__avatar {
+.rj-remote-tile__avatar {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -304,7 +311,7 @@
   background: linear-gradient(135deg, #2d2b55 0%, #1a1a2e 100%);
 }
 
-.jr-remote-tile__name {
+.rj-remote-tile__name {
   position: absolute;
   bottom: 8px;
   left: 8px;
@@ -318,7 +325,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-remote-tile__mute-icon {
+.rj-remote-tile__mute-icon {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -334,7 +341,7 @@
 /* Screen share preview           */
 /* ============================== */
 
-.jr-screen-tile {
+.rj-screen-tile {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
@@ -343,13 +350,13 @@
   border: 2px solid rgba(99, 102, 241, 0.5);
 }
 
-.jr-screen-tile__video {
+.rj-screen-tile__video {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.jr-screen-tile__label {
+.rj-screen-tile__label {
   position: absolute;
   bottom: 8px;
   left: 8px;
@@ -367,7 +374,7 @@
 /* Chat panel                     */
 /* ============================== */
 
-.jr-chat-panel {
+.rj-chat-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -378,7 +385,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-chat-panel__header {
+.rj-chat-panel__header {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 14px;
@@ -386,7 +393,7 @@
   color: #e0e0e0;
 }
 
-.jr-chat-panel__messages {
+.rj-chat-panel__messages {
   flex: 1;
   overflow-y: auto;
   padding: 12px 16px;
@@ -395,7 +402,7 @@
   gap: 8px;
 }
 
-.jr-chat-panel__input-area {
+.rj-chat-panel__input-area {
   display: flex;
   gap: 8px;
   padding: 12px 16px;
@@ -406,7 +413,7 @@
 /* Chat messages                  */
 /* ============================== */
 
-.jr-msg-list {
+.rj-msg-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -414,28 +421,28 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-msg {
+.rj-msg {
   display: flex;
   flex-direction: column;
   gap: 2px;
   max-width: 85%;
 }
 
-.jr-msg--local {
+.rj-msg--local {
   align-self: flex-end;
 }
 
-.jr-msg--remote {
+.rj-msg--remote {
   align-self: flex-start;
 }
 
-.jr-msg__sender {
+.rj-msg__sender {
   font-size: 11px;
   font-weight: 500;
   color: #9ca3af;
 }
 
-.jr-msg__bubble {
+.rj-msg__bubble {
   padding: 8px 12px;
   border-radius: 12px 12px 12px 4px;
   background-color: rgba(255, 255, 255, 0.1);
@@ -444,7 +451,7 @@
   line-height: 1.4;
 }
 
-.jr-msg__bubble--local {
+.rj-msg__bubble--local {
   border-radius: 12px 12px 4px 12px;
   background-color: rgba(99, 102, 241, 0.8);
   color: #fff;
@@ -454,7 +461,7 @@
 /* Chat input (standalone)        */
 /* ============================== */
 
-.jr-chat-input {
+.rj-chat-input {
   display: flex;
   gap: 8px;
   width: 100%;
@@ -465,14 +472,14 @@
 /* Participant list               */
 /* ============================== */
 
-.jr-participant-list {
+.rj-participant-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-participant-item {
+.rj-participant-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -482,7 +489,7 @@
   transition: background-color 0.15s ease;
 }
 
-.jr-participant-item__name {
+.rj-participant-item__name {
   flex: 1;
   font-size: 13px;
   font-weight: 500;
@@ -492,21 +499,21 @@
   white-space: nowrap;
 }
 
-.jr-participant-item__you {
+.rj-participant-item__you {
   font-size: 11px;
   font-weight: 500;
   color: #9ca3af;
   margin-left: 4px;
 }
 
-.jr-participant-item__icons {
+.rj-participant-item__icons {
   display: flex;
   gap: 4px;
   align-items: center;
   flex-shrink: 0;
 }
 
-.jr-status-icon {
+.rj-status-icon {
   width: 16px;
   height: 16px;
   display: flex;
@@ -515,7 +522,7 @@
   opacity: 0.6;
 }
 
-.jr-status-icon--muted {
+.rj-status-icon--muted {
   opacity: 1;
   color: #ef4444;
 }
@@ -524,7 +531,7 @@
 /* Captions                       */
 /* ============================== */
 
-.jr-captions {
+.rj-captions {
   position: absolute;
   bottom: 80px;
   left: 50%;
@@ -537,7 +544,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-caption {
+.rj-caption {
   padding: 6px 16px;
   border-radius: 8px;
   background-color: rgba(0, 0, 0, 0.75);
@@ -549,7 +556,7 @@
   line-height: 1.4;
 }
 
-.jr-caption__name {
+.rj-caption__name {
   font-weight: 600;
   margin-right: 6px;
   color: #a5b4fc;
@@ -559,7 +566,7 @@
 /* Panel / container              */
 /* ============================== */
 
-.jr-panel {
+.rj-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -573,25 +580,25 @@
 /* Polls                          */
 /* ============================== */
 
-.jr-poll__question {
+.rj-poll__question {
   font-size: 15px;
   font-weight: 600;
   color: #e0e0e0;
 }
 
-.jr-poll__meta {
+.rj-poll__meta {
   font-size: 11px;
   color: #6b7280;
 }
 
-.jr-poll__status {
+.rj-poll__status {
   font-size: 11px;
   color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.jr-poll__option {
+.rj-poll__option {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -603,44 +610,44 @@
   transition: all 0.15s ease;
 }
 
-.jr-poll__option--voted {
+.rj-poll__option--voted {
   border-color: #6366f1;
 }
 
-.jr-poll__option-bar-container {
+.rj-poll__option-bar-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.jr-poll__option-text {
+.rj-poll__option-text {
   font-size: 13px;
   color: #e0e0e0;
 }
 
-.jr-poll__option-bar-bg {
+.rj-poll__option-bar-bg {
   height: 4px;
   border-radius: 2px;
   background-color: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
 
-.jr-poll__option-bar-fill {
+.rj-poll__option-bar-fill {
   height: 100%;
   border-radius: 2px;
   background-color: #6366f1;
   transition: width 0.3s ease;
 }
 
-.jr-poll__vote-count {
+.rj-poll__vote-count {
   font-size: 12px;
   color: #9ca3af;
   min-width: 30px;
   text-align: right;
 }
 
-.jr-poll__close-btn {
+.rj-poll__close-btn {
   padding: 6px 12px;
   border-radius: 6px;
   border: none;
@@ -652,7 +659,7 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-poll__empty {
+.rj-poll__empty {
   text-align: center;
   color: #6b7280;
   font-size: 13px;
@@ -662,13 +669,13 @@
 /* Admin controls                 */
 /* ============================== */
 
-.jr-admin-controls {
+.rj-admin-controls {
   display: flex;
   gap: 6px;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-admin-btn {
+.rj-admin-btn {
   padding: 4px 10px;
   border-radius: 6px;
   border: none;
@@ -679,17 +686,17 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-admin-btn--mute {
+.rj-admin-btn--mute {
   background-color: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
 
-.jr-admin-btn--kick {
+.rj-admin-btn--kick {
   background-color: rgba(239, 68, 68, 0.8);
   color: #fff;
 }
 
-.jr-admin-btn--promote {
+.rj-admin-btn--promote {
   background-color: rgba(99, 102, 241, 0.15);
   color: #a5b4fc;
 }
@@ -698,7 +705,7 @@
 /* Mute all button                */
 /* ============================== */
 
-.jr-mute-all-btn {
+.rj-mute-all-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -721,7 +728,7 @@
 /* Poll creator form buttons      */
 /* ============================== */
 
-.jr-btn-sm {
+.rj-btn-sm {
   padding: 8px 16px;
   border-radius: 8px;
   border: none;
@@ -731,12 +738,12 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-btn-sm--ghost {
+.rj-btn-sm--ghost {
   background-color: rgba(255, 255, 255, 0.1);
   color: #e0e0e0;
 }
 
-.jr-btn-sm--primary {
+.rj-btn-sm--primary {
   background-color: rgba(99, 102, 241, 0.9);
   color: #fff;
 }
@@ -745,7 +752,7 @@
 /* JitsiMeeting layout            */
 /* ============================== */
 
-.jr-meeting {
+.rj-meeting {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -758,7 +765,7 @@
   color: #e0e0e0;
 }
 
-.jr-meeting__header {
+.rj-meeting__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -768,7 +775,7 @@
   backdrop-filter: blur(8px);
 }
 
-.jr-meeting__title {
+.rj-meeting__title {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -776,7 +783,7 @@
   font-size: 15px;
 }
 
-.jr-meeting__logo {
+.rj-meeting__logo {
   width: 28px;
   height: 28px;
   border-radius: 8px;
@@ -789,13 +796,13 @@
   color: #fff;
 }
 
-.jr-meeting__main {
+.rj-meeting__main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-.jr-meeting__video-area {
+.rj-meeting__video-area {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -804,7 +811,7 @@
   gap: 12px;
 }
 
-.jr-meeting__remote-area {
+.rj-meeting__remote-area {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -812,7 +819,7 @@
   overflow-y: auto;
 }
 
-.jr-meeting__empty {
+.rj-meeting__empty {
   position: absolute;
   inset: 0;
   display: flex;
@@ -824,7 +831,7 @@
   pointer-events: none;
 }
 
-.jr-meeting__local-video {
+.rj-meeting__local-video {
   position: absolute;
   bottom: 16px;
   right: 16px;
@@ -836,7 +843,7 @@
   z-index: 10;
 }
 
-.jr-meeting__toolbar {
+.rj-meeting__toolbar {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -847,7 +854,7 @@
   backdrop-filter: blur(8px);
 }
 
-.jr-meeting__sidebar {
+.rj-meeting__sidebar {
   width: 320px;
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
@@ -855,12 +862,12 @@
   background-color: rgba(15, 15, 25, 0.6);
 }
 
-.jr-meeting__tab-bar {
+.rj-meeting__tab-bar {
   display: flex;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.jr-meeting__tab {
+.rj-meeting__tab {
   flex: 1;
   padding: 10px;
   text-align: center;
@@ -874,30 +881,30 @@
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-.jr-meeting__tab--active {
+.rj-meeting__tab--active {
   color: #6366f1;
   border-bottom: 2px solid #6366f1;
 }
 
-.jr-meeting__sidebar-content {
+.rj-meeting__sidebar-content {
   flex: 1;
   overflow-y: auto;
   padding: 12px;
 }
 
-.jr-meeting__settings-group {
+.rj-meeting__settings-group {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.jr-meeting__settings-section {
+.rj-meeting__settings-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.jr-meeting__settings-title {
+.rj-meeting__settings-title {
   font-size: 12px;
   font-weight: 600;
   color: #9ca3af;
@@ -905,7 +912,7 @@
   letter-spacing: 0.05em;
 }
 
-.jr-meeting__header-actions {
+.rj-meeting__header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
