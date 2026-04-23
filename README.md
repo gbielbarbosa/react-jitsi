@@ -1,5 +1,3 @@
-<div align="center">
-
 # react-jitsi
 
 **A composable React SDK for Jitsi Meet with full UI customization**
@@ -11,20 +9,18 @@
 Build custom video conferencing interfaces with composable React components.  
 Every component is independent, stylable, and supports the **`asChild`** pattern.
 
-</div>
-
 ---
 
 ## Features
 
-- **Compound Components** — `<JitsiProvider>` manages the connection, child components plug in freely
-- **Full Customization** — Default dark theme, `className`/`style` overrides, render props, or `asChild`
-- **30+ Components** — Video, audio, chat, recording, polls, screen share, admin, performance, and more
-- **`asChild` Pattern** — Transfer behavior to your own elements (Radix UI-inspired)
-- **`useJitsi()` Hook** — Full access to state & actions for headless implementations
-- **Pre-built UI** — `<JitsiMeeting>` component for instant, zero-config meetings
-- **TypeScript** — Full type definitions with generics and JSDoc
-- **Dual Output** — CJS + ESM + `.d.ts` declarations
+- **Compound Components** - `<JitsiProvider>` manages the connection, child components plug in freely
+- **Full Customization** - Default dark theme, `className`/`style` overrides, render props, or `asChild`
+- **30+ Components** - Video, audio, chat, recording, polls, screen share, admin, performance, and more
+- **`asChild` Pattern** - Transfer behavior to your own elements (Radix UI-inspired)
+- **`useJitsi()` Hook** - Full access to state & actions for headless implementations
+- **Pre-built UI** - `<JitsiMeeting>` component for instant, zero-config meetings
+- **TypeScript** - Full type definitions with generics and JSDoc
+- **Dual Output** - CJS + ESM + `.d.ts` declarations
 
 ---
 
@@ -34,7 +30,7 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 npm install @gbielbarbosa/react-jitsi
 ```
 
-These examples use JaaS domain, if you are self-hosting Jitsi, you should replace 8x8.vc with your domain.
+These examples use JaaS domain, if you are self-hosting Jitsi, you should replace "8x8.vc" with your domain.
 
 Add the lib-jitsi-meet script to your HTML:
 
@@ -61,7 +57,7 @@ function App() {
   return (
     <JitsiMeeting
       domain="8x8.vc"
-      tenant="meeting" // App ID
+      tenant="meet" // App ID
       roomName="my-room"
       jwt="token"
       userInfo={{ displayName: 'Alice' }}
@@ -93,7 +89,7 @@ function MyMeeting() {
   return (
     <JitsiProvider
       domain="8x8.vc"
-      tenant="meeting" // App ID
+      tenant="meet" // App ID
       roomName="my-room"
       jwt="token"
       userInfo={{ displayName: 'Alice' }}
@@ -155,7 +151,9 @@ function CustomControls() {
 
 ---
 
-## `asChild` Pattern
+## Customization: `asChild` and Render Props
+
+### `asChild` Pattern (Buttons)
 
 All button components support `asChild`. When enabled, the component transfers its behavior (click handlers, aria attributes, data-state) to your child element:
 
@@ -185,7 +183,28 @@ All button components support `asChild`. When enabled, the component transfers i
 }
 ```
 
-**Components with `asChild`:** `ToggleAudio`, `ToggleVideo`, `LeaveButton`, `ScreenShareButton`, `ToggleMirror`, `ToggleCaptions`, `ToggleChat`, `ToggleRecording`, `ToggleWhiteboard`, `TogglePolls`, `ToggleNoiseSuppression`, `MuteAllButton`, `VirtualBackground`
+### Render Props (Complex Components)
+
+For more complex components that do not support `asChild` (such as lists, panels, and selectors), you can fully customize their rendering by passing a function as `children` (render prop pattern). The function will receive the necessary state and handlers.
+
+```tsx
+<DeviceSelector kind="audioinput">
+  {(devices, selectDevice, selectedId) => (
+    <div className="my-custom-dropdown">
+      {devices.map(d => (
+        <button 
+          key={d.deviceId} 
+          onClick={() => selectDevice(d.deviceId)}
+          className={selectedId === d.deviceId ? 'active' : ''}
+        >
+          {d.label}
+        </button>
+      ))}
+    </div>
+  )}
+</DeviceSelector>
+```
+
 
 ---
 
@@ -195,7 +214,7 @@ All button components support `asChild`. When enabled, the component transfers i
 
 | Export | Description |
 |---|---|
-| `<JitsiProvider>` | Root component — manages connection, conference, tracks, and all state |
+| `<JitsiProvider>` | Root component - manages connection, conference, tracks, and all state |
 | `<JitsiMeeting>` | Pre-built, full-featured meeting UI (wraps JitsiProvider) |
 | `useJitsi()` | Hook to access all state and actions |
 | `<Slot>` | Utility for the `asChild` pattern |
@@ -210,70 +229,70 @@ All button components support `asChild`. When enabled, the component transfers i
 
 ### Control Components
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<ToggleAudio>` | ✅ | Mute/unmute microphone |
-| `<ToggleVideo>` | ✅ | Toggle camera on/off |
-| `<LeaveButton>` | ✅ | Leave the meeting (with optional confirmation) |
-| `<ScreenShareButton>` | ✅ | Start/stop screen sharing (with `frameRate` prop) |
-| `<ToggleMirror>` | ✅ | Toggle local video mirroring |
-| `<DeviceSelector>` | — | Dropdown for camera/microphone selection |
-| `<AudioOutputSelector>` | — | Dropdown for speaker/headphone selection |
+| `<ToggleAudio>` | `asChild`, Render Prop | Mute/unmute microphone |
+| `<ToggleVideo>` | `asChild`, Render Prop | Toggle camera on/off |
+| `<LeaveButton>` | `asChild`, Render Prop | Leave the meeting (with optional confirmation) |
+| `<ScreenShareButton>` | `asChild`, Render Prop | Start/stop screen sharing (with `frameRate` prop) |
+| `<ToggleMirror>` | `asChild`, Render Prop | Toggle local video mirroring |
+| `<DeviceSelector>` | Render Prop | Dropdown for camera/microphone selection |
+| `<AudioOutputSelector>` | Render Prop | Dropdown for speaker/headphone selection |
 
 ### Chat
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<ChatPanel>` | — | Full chat UI with messages and input |
-| `<ChatInput>` | — | Standalone chat input (for custom layouts) |
-| `<ChatMessages>` | — | Standalone message list (for custom layouts) |
-| `<ToggleChat>` | ✅ | Toggle button with unread badge |
+| `<ChatPanel>` | Render Prop | Full chat UI with messages and input |
+| `<ChatInput>` | Render Prop | Standalone chat input (for custom layouts) |
+| `<ChatMessages>` | Render Prop | Standalone message list (for custom layouts) |
+| `<ToggleChat>` | `asChild`, Render Prop | Toggle button with unread badge |
 
 ### Captions
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<Captions>` | — | Live subtitle overlay (requires Jigasi) |
-| `<ToggleCaptions>` | ✅ | Toggle captions on/off |
+| `<Captions>` | Render Prop | Live subtitle overlay (requires Jigasi) |
+| `<ToggleCaptions>` | `asChild`, Render Prop | Toggle captions on/off |
 
 ### Recording
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<ToggleRecording>` | ✅ | Start/stop recording (requires Jibri + moderator) |
-| `<RecordingIndicator>` | — | Pulsing "REC" indicator (auto-hides) |
+| `<ToggleRecording>` | `asChild`, Render Prop | Start/stop recording (requires Jibri + moderator) |
+| `<RecordingIndicator>` | Render Prop | Pulsing "REC" indicator (auto-hides) |
 
 ### Effects (Interface Only)
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<VirtualBackground>` | ✅ | Interface for custom `TrackEffect` virtual backgrounds |
-| `<ToggleNoiseSuppression>` | ✅ | Interface for custom `TrackEffect` noise suppression |
+| `<VirtualBackground>` | `asChild`, Render Prop | Interface for custom `TrackEffect` virtual backgrounds |
+| `<ToggleNoiseSuppression>` | `asChild`, Render Prop | Interface for custom `TrackEffect` noise suppression |
 
 ### Whiteboard (Interface Only)
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<Whiteboard>` | — | Data sync layer for external whiteboard libs (Excalidraw, tldraw) |
-| `<ToggleWhiteboard>` | ✅ | Toggle whiteboard visibility |
+| `<Whiteboard>` | Render Prop | Data sync layer for external whiteboard libs (Excalidraw, tldraw) |
+| `<ToggleWhiteboard>` | `asChild`, Render Prop | Toggle whiteboard visibility |
 
 ### Polls
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<PollCreator>` | — | Form to create new polls |
-| `<PollDisplay>` | — | Poll results with voting |
-| `<TogglePolls>` | ✅ | Toggle button with active poll badge |
+| `<PollCreator>` | Render Prop | Form to create new polls |
+| `<PollDisplay>` | Render Prop | Poll results with voting |
+| `<TogglePolls>` | `asChild`, Render Prop | Toggle button with active poll badge |
 
 ### Performance & Admin
 
-| Component | `asChild` | Description |
+| Component | Customization | Description |
 |---|---|---|
-| `<PerformanceSettings>` | — | Video quality and lastN controls |
-| `<ConnectionStatus>` | — | Connection status indicator with dot |
-| `<ParticipantList>` | — | Full participant list with avatars and status |
-| `<AdminControls>` | — | Moderator controls for a participant (kick, mute, promote) |
-| `<MuteAllButton>` | ✅ | Mute all participants (moderator only) |
+| `<PerformanceSettings>` | Render Prop | Video quality and lastN controls |
+| `<ConnectionStatus>` | Render Prop | Connection status indicator with dot |
+| `<ParticipantList>` | Render Prop | Full participant list with avatars and status |
+| `<AdminControls>` | Render Prop | Moderator controls for a participant (kick, mute, promote) |
+| `<MuteAllButton>` | `asChild`, Render Prop | Mute all participants (moderator only) |
 
 ---
 
@@ -433,20 +452,20 @@ const {
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `domain` | `string` | *required* | Jitsi server domain |
-| `roomName` | `string` | *required* | Conference room name |
-| `userInfo` | `{ displayName?, email?, avatarUrl? }` | — | User information |
+| `domain` | `string` | required | Jitsi server domain |
+| `roomName` | `string` | required | Conference room name |
+| `userInfo` | `{ displayName?, email?, avatarUrl? }` | - | User information |
 | `token` | `string \| null` | `null` | JWT authentication token |
-| `configOverwrite` | `ConferenceOptions` | — | Override conference config |
+| `configOverwrite` | `ConferenceOptions` | - | Override conference config |
 | `autoJoin` | `boolean` | `true` | Auto-join on mount |
 | `devices` | `('audio' \| 'video')[]` | `['audio', 'video']` | Devices to request |
-| `onConferenceJoined` | `() => void` | — | Called when joined |
-| `onConferenceLeft` | `() => void` | — | Called when left |
-| `onParticipantJoined` | `(p: Participant) => void` | — | Called when someone joins |
-| `onParticipantLeft` | `(id: string) => void` | — | Called when someone leaves |
-| `onMessageReceived` | `(msg: ChatMessage) => void` | — | Called on new chat message |
-| `onError` | `(err: Error) => void` | — | Error handler |
-| `onConnectionStatusChanged` | `(status) => void` | — | Connection status change |
+| `onConferenceJoined` | `() => void` | - | Called when joined |
+| `onConferenceLeft` | `() => void` | - | Called when left |
+| `onParticipantJoined` | `(p: Participant) => void` | - | Called when someone joins |
+| `onParticipantLeft` | `(id: string) => void` | - | Called when someone leaves |
+| `onMessageReceived` | `(msg: ChatMessage) => void` | - | Called on new chat message |
+| `onError` | `(err: Error) => void` | - | Error handler |
+| `onConnectionStatusChanged` | `(status) => void` | - | Connection status change |
 
 ---
 
@@ -454,19 +473,19 @@ const {
 
 ```
 JitsiProvider (Context + State Management)
-  ├── useReducer → Predictable state with typed actions
-  ├── JitsiConnection → WebSocket to Jitsi server
-  ├── JitsiConference → XMPP room management
-  ├── Local Tracks → Camera, microphone, screen share
-  └── Event Listeners → Track, participant, chat, recording events
+  ├── useReducer - Predictable state with typed actions
+  ├── JitsiConnection - WebSocket to Jitsi server
+  ├── JitsiConference - XMPP room management
+  ├── Local Tracks - Camera, microphone, screen share
+  └── Event Listeners - Track, participant, chat, recording events
 
 Components (Consumer Layer)
-  ├── Media → LocalVideo, RemoteVideos, AudioTrack
-  ├── Controls → Toggle*, LeaveButton, DeviceSelector, ScreenShare
-  ├── Chat → ChatPanel, ChatInput, ChatMessages
-  ├── Status → ConnectionStatus, ParticipantList, RecordingIndicator
-  ├── Collaboration → Whiteboard, PollCreator, PollDisplay, Captions
-  └── Admin → AdminControls, MuteAllButton
+  ├── Media - LocalVideo, RemoteVideos, AudioTrack
+  ├── Controls - Toggle, LeaveButton, DeviceSelector, ScreenShare
+  ├── Chat - ChatPanel, ChatInput, ChatMessages
+  ├── Status - ConnectionStatus, ParticipantList, RecordingIndicator
+  ├── Collaboration - Whiteboard, PollCreator, PollDisplay, Captions
+  └── Admin - AdminControls, MuteAllButton
 ```
 
 ---
@@ -475,11 +494,11 @@ Components (Consumer Layer)
 
 | Feature | Server Component | Notes |
 |---|---|---|
-| Basic conferencing | Jitsi Meet | Works with `meet.jit.si` |
+| Basic conferencing | Jitsi Meet | It doesn't work with `meet.jit.si` |
 | Recording | Jibri | Self-hosted only |
 | Captions/Transcription | Jigasi | + Speech-to-text service |
-| Noise Suppression | — | Client-side only |
-| Virtual Backgrounds | — | Client-side only |
+| Noise Suppression | - | Client-side only |
+| Virtual Backgrounds | - | Client-side only |
 
 ---
 

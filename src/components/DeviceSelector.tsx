@@ -20,33 +20,6 @@ export interface DeviceSelectorProps {
   ) => React.ReactNode;
 }
 
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: '12px',
-  fontWeight: 500,
-  color: '#a0a0b0',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: '8px',
-  border: '1px solid rgba(255, 255, 255, 0.15)',
-  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  color: '#ffffff',
-  fontSize: '13px',
-  outline: 'none',
-  cursor: 'pointer',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-};
-
 /**
  * Device selector dropdown for camera, microphone, or speaker.
  *
@@ -120,10 +93,10 @@ export function DeviceSelector({
         : 'Speaker');
 
   return (
-    <div className={className} style={{ ...containerStyle, ...style }}>
-      <label style={labelStyle}>{defaultLabel}</label>
+    <div className={`jr-field-group ${className || ''}`} style={style}>
+      <label className="jr-label">{defaultLabel}</label>
       <select
-        style={selectStyle}
+        className="jr-select"
         value={selectedId || ''}
         onChange={(e) => handleSelect(e.target.value)}
       >

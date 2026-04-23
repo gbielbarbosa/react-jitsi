@@ -10,23 +10,6 @@ export interface LocalVideoProps {
   showPlaceholder?: boolean;
 }
 
-const defaultStyle: React.CSSProperties = {
-  width: '100%', height: '100%', objectFit: 'cover',
-  borderRadius: '12px', backgroundColor: '#1a1a2e',
-};
-const placeholderStyle: React.CSSProperties = {
-  position: 'absolute', inset: 0,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  borderRadius: '12px',
-  backgroundColor: '#1a1a2e', color: '#e0e0e0', fontSize: '14px',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-};
-const avatarStyle: React.CSSProperties = {
-  width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#6366f1',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontSize: '24px', fontWeight: 600, color: '#fff',
-};
-
 /**
  * Renders the local video track.
  * Mirror state is controlled by context (via ToggleMirror) unless overridden with `mirror` prop.
@@ -56,24 +39,22 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
   const isHidden = videoMuted || !videoTrack;
 
   const videoStyle: React.CSSProperties = {
-    ...defaultStyle,
     transform: shouldMirror ? 'scaleX(-1)' : undefined,
     // Hide but keep mounted when muted
     display: isHidden ? 'none' : undefined,
-    ...style,
   };
 
   const localName = localParticipantId ? participants.get(localParticipantId)?.displayName || 'Me' : 'Me';
 
   return (
-    <div className={className} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className={`jr-local-video ${className || ''}`} style={style}>
       {/* Always-mounted video element — track stays attached across mute/unmute */}
-      <video ref={videoRef} autoPlay playsInline muted={muted} style={videoStyle} />
+      <video className="jr-local-video__video" ref={videoRef} autoPlay playsInline muted={muted} style={videoStyle} />
 
       {/* Placeholder shown on top when video is muted */}
       {isHidden && showPlaceholder && (
-        <div style={{ ...placeholderStyle, ...style }}>
-          <div style={avatarStyle}>{localName.charAt(0).toUpperCase()}</div>
+        <div className="jr-local-video__placeholder">
+          <div className="jr-avatar">{localName.charAt(0).toUpperCase()}</div>
         </div>
       )}
     </div>

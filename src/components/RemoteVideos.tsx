@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useJitsiContext } from '../JitsiContext';
+import { MicMutedOverlayIcon } from '../icons';
 import type { JitsiRemoteTrack, Participant } from '../types';
 
 export interface RemoteVideosProps {
@@ -18,13 +19,6 @@ export interface RemoteVideosProps {
     tracks: JitsiRemoteTrack[]
   ) => React.ReactNode;
 }
-
-const gridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-  gap: '12px',
-  width: '100%',
-};
 
 /**
  * Renders all remote participants' video and audio tracks.
@@ -60,7 +54,7 @@ export function RemoteVideos({
   }
 
   return (
-    <div className={className} style={{ ...gridStyle, ...style }}>
+    <div className={`jr-remote-grid ${className || ''}`} style={style}>
       {remoteParticipants.map((participant) => {
         const tracks = remoteTracks.get(participant.id) || [];
 
@@ -86,69 +80,6 @@ interface RemoteParticipantTileProps {
   tracks: JitsiRemoteTrack[];
   renderParticipant?: RemoteVideosProps['renderParticipant'];
 }
-
-const tileStyle: React.CSSProperties = {
-  position: 'relative',
-  borderRadius: '12px',
-  overflow: 'hidden',
-  backgroundColor: '#1a1a2e',
-  aspectRatio: '16 / 9',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const videoStyle: React.CSSProperties = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover',
-};
-
-const nameTagStyle: React.CSSProperties = {
-  position: 'absolute',
-  bottom: '8px',
-  left: '8px',
-  padding: '4px 10px',
-  borderRadius: '6px',
-  backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  backdropFilter: 'blur(4px)',
-  color: '#ffffff',
-  fontSize: '12px',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-  fontWeight: 500,
-  maxWidth: 'calc(100% - 16px)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-
-const muteIconStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: '8px',
-  right: '8px',
-  padding: '4px',
-  borderRadius: '50%',
-  backgroundColor: 'rgba(239, 68, 68, 0.8)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '24px',
-  height: '24px',
-};
-
-const remoteAvatarStyle: React.CSSProperties = {
-  width: '56px',
-  height: '56px',
-  borderRadius: '50%',
-  backgroundColor: '#8b5cf6',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '22px',
-  fontWeight: 600,
-  color: '#ffffff',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-};
 
 function RemoteParticipantTile({
   participant,
@@ -199,40 +130,34 @@ function RemoteParticipantTile({
     <>
       {/* Screen share tile (shown above camera tile when participant shares) */}
       {screenTrack && (
-        <div style={{ ...tileStyle, aspectRatio: '16 / 9' }}>
-          <video ref={screenRef} autoPlay playsInline style={videoStyle} />
-          <div style={nameTagStyle}>📺 {participant.displayName}'s screen</div>
+        <div className="jr-remote-tile">
+          <video className="jr-remote-tile__video" ref={screenRef} autoPlay playsInline />
+          <div className="jr-remote-tile__name">📺 {participant.displayName}'s screen</div>
         </div>
       )}
 
       {/* Camera tile */}
-      <div style={tileStyle}>
+      <div className="jr-remote-tile">
         <video
+          className="jr-remote-tile__video"
           ref={videoRef}
           autoPlay
           playsInline
-          style={{ ...videoStyle, display: hasVideo ? undefined : 'none' }}
+          style={{ display: hasVideo ? undefined : 'none' }}
         />
         {!hasVideo && (
-          <div style={remoteAvatarStyle}>
+          <div className="jr-remote-tile__avatar">
             {participant.displayName.charAt(0).toUpperCase()}
           </div>
         )}
         <audio ref={audioRef} autoPlay />
-        <div style={nameTagStyle}>{participant.displayName}</div>
+        <div className="jr-remote-tile__name">{participant.displayName}</div>
         {participant.audioMuted && (
-          <div style={muteIconStyle}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-              <line x1="1" y1="1" x2="23" y2="23" />
-              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
-              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
+          <div className="jr-remote-tile__mute-icon">
+            <MicMutedOverlayIcon />
           </div>
         )}
       </div>
     </>
   );
 }
-

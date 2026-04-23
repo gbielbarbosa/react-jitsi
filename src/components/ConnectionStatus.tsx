@@ -17,25 +17,6 @@ export interface ConnectionStatusProps {
   ) => React.ReactNode;
 }
 
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '6px 12px',
-  borderRadius: '8px',
-  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-  fontSize: '13px',
-  color: '#e0e0e0',
-};
-
-const dotBaseStyle: React.CSSProperties = {
-  width: '8px',
-  height: '8px',
-  borderRadius: '50%',
-  flexShrink: 0,
-};
-
 function getStatusColor(connStatus: ConnectionStatusType, confStatus: ConferenceStatus): string {
   if (connStatus === 'failed' || confStatus === 'error') return '#ef4444';
   if (confStatus === 'joined') return '#22c55e';
@@ -83,17 +64,17 @@ export function ConnectionStatus({ className, style, children }: ConnectionStatu
   const label = getStatusLabel(connectionStatus, conferenceStatus);
 
   return (
-    <div className={className} style={{ ...containerStyle, ...style }}>
+    <div className={`jr-connection ${className || ''}`} style={style}>
       <div
+        className="jr-connection__dot"
         style={{
-          ...dotBaseStyle,
           backgroundColor: color,
           boxShadow: `0 0 6px ${color}`,
         }}
       />
       <span>{label}</span>
       {conferenceStatus === 'joined' && (
-        <span style={{ color: '#9ca3af', marginLeft: '4px' }}>
+        <span className="jr-connection__count">
           · {participantCount} {participantCount === 1 ? 'participant' : 'participants'}
         </span>
       )}
