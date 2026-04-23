@@ -30,6 +30,12 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 npm install @gbielbarbosa/react-jitsi
 ```
 
+If you want to use the default UI styles, import the CSS file in your app's entry point (`App.tsx` or `index.tsx`):
+
+```tsx
+import '@gbielbarbosa/react-jitsi/styles.css';
+```
+
 These examples use JaaS domain, if you are self-hosting Jitsi, you should replace "8x8.vc" with your domain.
 
 Add the lib-jitsi-meet script to your HTML:
@@ -52,6 +58,7 @@ Zero-config, full-featured meeting interface:
 
 ```tsx
 import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
+import '@gbielbarbosa/react-jitsi/styles.css';
 
 function App() {
   return (
@@ -84,6 +91,7 @@ import {
   ParticipantList,
   ChatPanel,
 } from '@gbielbarbosa/react-jitsi';
+import '@gbielbarbosa/react-jitsi/styles.css';
 
 function MyMeeting() {
   return (
@@ -448,7 +456,7 @@ const {
 
 ---
 
-## ⚙️ `<JitsiProvider>` Props
+## `<JitsiProvider>` Props
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
