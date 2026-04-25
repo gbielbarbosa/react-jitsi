@@ -54,7 +54,7 @@ export function RemoteVideos({
   }
 
   return (
-    <div className={`jr-remote-grid ${className || ''}`} style={style}>
+    <div className={`rj-remote-grid ${className || ''}`} style={style}>
       {remoteParticipants.map((participant) => {
         const tracks = remoteTracks.get(participant.id) || [];
 
@@ -130,30 +130,30 @@ function RemoteParticipantTile({
     <>
       {/* Screen share tile (shown above camera tile when participant shares) */}
       {screenTrack && (
-        <div className="jr-remote-tile">
-          <video className="jr-remote-tile__video" ref={screenRef} autoPlay playsInline />
-          <div className="jr-remote-tile__name">📺 {participant.displayName}'s screen</div>
+        <div className="rj-remote-tile">
+          <video className="rj-remote-tile__video" ref={screenRef} autoPlay playsInline />
+          <div className="rj-remote-tile__name">📺 {participant.displayName}'s screen</div>
         </div>
       )}
 
       {/* Camera tile */}
-      <div className="jr-remote-tile">
+      <div className="rj-remote-tile">
         <video
-          className="jr-remote-tile__video"
+          className="rj-remote-tile__video"
           ref={videoRef}
           autoPlay
           playsInline
           style={{ display: hasVideo ? undefined : 'none' }}
         />
         {!hasVideo && (
-          <div className="jr-remote-tile__avatar">
+          <div className="rj-remote-tile__avatar">
             {participant.displayName.charAt(0).toUpperCase()}
           </div>
         )}
         <audio ref={audioRef} autoPlay />
-        <div className="jr-remote-tile__name">{participant.displayName}</div>
+        <div className="rj-remote-tile__name">{participant.displayName}</div>
         {participant.audioMuted && (
-          <div className="jr-remote-tile__mute-icon">
+          <div className="rj-remote-tile__mute-icon">
             <MicMutedOverlayIcon />
           </div>
         )}

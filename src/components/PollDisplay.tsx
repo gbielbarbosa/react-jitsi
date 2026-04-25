@@ -17,28 +17,28 @@ function SinglePoll({ poll }: { poll: Poll }) {
   const isCreator = poll.creatorId === localParticipantId;
 
   return (
-    <div className="jr-panel">
+    <div className="rj-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span className="jr-poll__question">{poll.question}</span>
-        <span className="jr-poll__status">{poll.isOpen ? 'Open' : 'Closed'}</span>
+        <span className="rj-poll__question">{poll.question}</span>
+        <span className="rj-poll__status">{poll.isOpen ? 'Open' : 'Closed'}</span>
       </div>
-      <span className="jr-poll__meta">by {poll.creatorName} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
+      <span className="rj-poll__meta">by {poll.creatorName} · {totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
       {poll.options.map((opt, i) => {
         const pct = totalVotes > 0 ? (opt.voters.length / totalVotes) * 100 : 0;
         const voted = localParticipantId ? opt.voters.includes(localParticipantId) : false;
         return (
-          <div key={i} className={`jr-poll__option ${voted ? 'jr-poll__option--voted' : ''}`}
+          <div key={i} className={`rj-poll__option ${voted ? 'rj-poll__option--voted' : ''}`}
             onClick={() => { if (poll.isOpen) votePoll(poll.id, i); }}>
-            <div className="jr-poll__option-bar-container">
-              <span className="jr-poll__option-text">{opt.text}</span>
-              <div className="jr-poll__option-bar-bg"><div className="jr-poll__option-bar-fill" style={{ width: `${pct}%` }} /></div>
+            <div className="rj-poll__option-bar-container">
+              <span className="rj-poll__option-text">{opt.text}</span>
+              <div className="rj-poll__option-bar-bg"><div className="rj-poll__option-bar-fill" style={{ width: `${pct}%` }} /></div>
             </div>
-            <span className="jr-poll__vote-count">{opt.voters.length}</span>
+            <span className="rj-poll__vote-count">{opt.voters.length}</span>
           </div>
         );
       })}
       {poll.isOpen && (isMod || isCreator) && (
-        <button className="jr-poll__close-btn" onClick={() => closePoll(poll.id)} type="button">Close Poll</button>
+        <button className="rj-poll__close-btn" onClick={() => closePoll(poll.id)} type="button">Close Poll</button>
       )}
     </div>
   );
@@ -71,7 +71,7 @@ export function PollDisplay({ className, style, poll: pollProp, children }: Poll
 
   if (sorted.length === 0) {
     return (
-      <div className={`jr-panel jr-poll__empty ${className || ''}`} style={style}>
+      <div className={`rj-panel rj-poll__empty ${className || ''}`} style={style}>
         No polls yet. Create one above!
       </div>
     );

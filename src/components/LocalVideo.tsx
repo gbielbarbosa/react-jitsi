@@ -47,14 +47,14 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
   const localName = localParticipantId ? participants.get(localParticipantId)?.displayName || 'Me' : 'Me';
 
   return (
-    <div className={`jr-local-video ${className || ''}`} style={style}>
+    <div className={`rj-local-video ${className || ''}`} style={style}>
       {/* Always-mounted video element — track stays attached across mute/unmute */}
-      <video className="jr-local-video__video" ref={videoRef} autoPlay playsInline muted={muted} style={videoStyle} />
+      <video className="rj-local-video__video" ref={videoRef} autoPlay playsInline muted={muted} style={videoStyle} />
 
       {/* Placeholder shown on top when video is muted */}
       {isHidden && showPlaceholder && (
-        <div className="jr-local-video__placeholder">
-          <div className="jr-avatar">{localName.charAt(0).toUpperCase()}</div>
+        <div className="rj-local-video__placeholder">
+          <div className="rj-avatar">{localName.charAt(0).toUpperCase()}</div>
         </div>
       )}
     </div>

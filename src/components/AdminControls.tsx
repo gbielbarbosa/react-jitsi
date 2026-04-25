@@ -38,11 +38,11 @@ export function AdminControls({ participantId, className, style, children }: Adm
   if (children) return <>{children(participant, actions)}</>;
 
   return (
-    <div className={`jr-admin-controls ${className || ''}`} style={style}>
-      <button className="jr-admin-btn jr-admin-btn--mute" onClick={actions.muteAudio} title="Mute audio" type="button">Mute</button>
-      <button className="jr-admin-btn jr-admin-btn--mute" onClick={actions.muteVideo} title="Mute video" type="button">No Video</button>
-      <button className="jr-admin-btn jr-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">Promote</button>
-      <button className="jr-admin-btn jr-admin-btn--kick" onClick={actions.kick} title="Kick participant" type="button">Kick</button>
+    <div className={`rj-admin-controls ${className || ''}`} style={style}>
+      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteAudio} title="Mute audio" type="button">Mute</button>
+      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteVideo} title="Mute video" type="button">No Video</button>
+      <button className="rj-admin-btn rj-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">Promote</button>
+      <button className="rj-admin-btn rj-admin-btn--kick" onClick={actions.kick} title="Kick participant" type="button">Kick</button>
     </div>
   );
 }

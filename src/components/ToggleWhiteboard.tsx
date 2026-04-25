@@ -20,7 +20,7 @@ export function ToggleWhiteboard({ className, style, asChild, children }: Toggle
     return <Slot onClick={toggleWhiteboard} data-state={dataState} aria-label={label} title={label} className={className} style={style}>{children}</Slot>;
   }
   return (
-    <button className={`jr-btn ${whiteboardActive ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${whiteboardActive ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={style}
       onClick={toggleWhiteboard} data-state={dataState} title={label} aria-label={label} type="button">
       <WhiteboardIcon />

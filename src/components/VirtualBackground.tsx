@@ -51,7 +51,7 @@ export function VirtualBackground({ className, style, asChild, children }: Virtu
   }
 
   return (
-    <button className={`jr-btn ${isActive ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${isActive ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={style}
       onClick={toggle} data-state={dataState} title={label} aria-label={label} type="button">
       <BackgroundIcon />

@@ -33,22 +33,22 @@ export function PerformanceSettings({ className, style, children }: PerformanceS
   if (children) return <>{children(setVideoQuality, setSenderQuality, setMaxVisibleParticipants)}</>;
 
   return (
-    <div className={`jr-panel ${className || ''}`} style={style}>
-      <div className="jr-form-row">
-        <label className="jr-label">Receive Quality</label>
-        <select className="jr-select" defaultValue={720} onChange={(e) => setVideoQuality(Number(e.target.value))}>
+    <div className={`rj-panel ${className || ''}`} style={style}>
+      <div className="rj-form-row">
+        <label className="rj-label">Receive Quality</label>
+        <select className="rj-select" defaultValue={720} onChange={(e) => setVideoQuality(Number(e.target.value))}>
           {QUALITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-      <div className="jr-form-row">
-        <label className="jr-label">Send Quality</label>
-        <select className="jr-select" defaultValue={720} onChange={(e) => setSenderQuality(Number(e.target.value))}>
+      <div className="rj-form-row">
+        <label className="rj-label">Send Quality</label>
+        <select className="rj-select" defaultValue={720} onChange={(e) => setSenderQuality(Number(e.target.value))}>
           {QUALITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
-      <div className="jr-form-row">
-        <label className="jr-label">Max Visible Participants</label>
-        <select className="jr-select" defaultValue={20} onChange={(e) => setMaxVisibleParticipants(Number(e.target.value))}>
+      <div className="rj-form-row">
+        <label className="rj-label">Max Visible Participants</label>
+        <select className="rj-select" defaultValue={20} onChange={(e) => setMaxVisibleParticipants(Number(e.target.value))}>
           {LAST_N.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>

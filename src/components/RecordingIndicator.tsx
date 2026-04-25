@@ -18,8 +18,8 @@ export function RecordingIndicator({ className, style, children }: RecordingIndi
   if (children) return <>{children(isRecording)}</>;
 
   return (
-    <div className={`jr-rec-indicator ${className || ''}`} style={style}>
-      <div className="jr-rec-indicator__dot" />
+    <div className={`rj-rec-indicator ${className || ''}`} style={style}>
+      <div className="rj-rec-indicator__dot" />
       <span>REC</span>
     </div>
   );

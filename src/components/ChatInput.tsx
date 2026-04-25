@@ -26,11 +26,11 @@ export function ChatInput({ className, style, placeholder = 'Type a message...',
   if (children) return <>{children(text, setText, send)}</>;
 
   return (
-    <div className={`jr-chat-input ${className || ''}`} style={style}>
-      <input className="jr-input" value={text} onChange={(e) => setText(e.target.value)}
+    <div className={`rj-chat-input ${className || ''}`} style={style}>
+      <input className="rj-input" value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
         placeholder={placeholder} />
-      <button className="jr-send-btn" onClick={send} type="button">Send</button>
+      <button className="rj-send-btn" onClick={send} type="button">Send</button>
     </div>
   );
 }

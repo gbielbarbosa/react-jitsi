@@ -35,21 +35,21 @@ export function ChatPanel({ className, style, placeholder = 'Type a message...',
   if (children) return <>{children(messages, sendMessage, unreadCount)}</>;
 
   return (
-    <div className={`jr-chat-panel ${className || ''}`} style={style}>
-      <div className="jr-chat-panel__header">Chat ({messages.length})</div>
-      <div className="jr-chat-panel__messages">
+    <div className={`rj-chat-panel ${className || ''}`} style={style}>
+      <div className="rj-chat-panel__header">Chat ({messages.length})</div>
+      <div className="rj-chat-panel__messages">
         {messages.map((msg) => (
-          <div key={msg.id} className={`jr-msg ${msg.isLocal ? 'jr-msg--local' : 'jr-msg--remote'}`}>
-            {!msg.isLocal && <span className="jr-msg__sender">{msg.displayName}{msg.isPrivate ? ' (private)' : ''}</span>}
-            <div className={`jr-msg__bubble ${msg.isLocal ? 'jr-msg__bubble--local' : ''}`}>{msg.text}</div>
+          <div key={msg.id} className={`rj-msg ${msg.isLocal ? 'rj-msg--local' : 'rj-msg--remote'}`}>
+            {!msg.isLocal && <span className="rj-msg__sender">{msg.displayName}{msg.isPrivate ? ' (private)' : ''}</span>}
+            <div className={`rj-msg__bubble ${msg.isLocal ? 'rj-msg__bubble--local' : ''}`}>{msg.text}</div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="jr-chat-panel__input-area">
-        <input className="jr-input" value={text} onChange={(e) => setText(e.target.value)}
+      <div className="rj-chat-panel__input-area">
+        <input className="rj-input" value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown} placeholder={placeholder} />
-        <button className="jr-send-btn" onClick={handleSend} type="button">Send</button>
+        <button className="rj-send-btn" onClick={handleSend} type="button">Send</button>
       </div>
     </div>
   );

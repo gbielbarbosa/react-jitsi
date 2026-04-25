@@ -28,9 +28,9 @@ export function AudioOutputSelector({ className, style, label, children }: Audio
   if (children) return <>{children(devices, handleSelect, selectedId)}</>;
 
   return (
-    <div className={`jr-field-group ${className || ''}`} style={style}>
-      <label className="jr-label">{label || 'Speaker'}</label>
-      <select className="jr-select" value={selectedId || ''} onChange={(e) => handleSelect(e.target.value)}>
+    <div className={`rj-field-group ${className || ''}`} style={style}>
+      <label className="rj-label">{label || 'Speaker'}</label>
+      <select className="rj-select" value={selectedId || ''} onChange={(e) => handleSelect(e.target.value)}>
         {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Device ${d.deviceId.substring(0, 8)}`}</option>)}
       </select>
     </div>

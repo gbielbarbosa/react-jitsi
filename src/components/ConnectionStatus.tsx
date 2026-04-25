@@ -64,9 +64,9 @@ export function ConnectionStatus({ className, style, children }: ConnectionStatu
   const label = getStatusLabel(connectionStatus, conferenceStatus);
 
   return (
-    <div className={`jr-connection ${className || ''}`} style={style}>
+    <div className={`rj-connection ${className || ''}`} style={style}>
       <div
-        className="jr-connection__dot"
+        className="rj-connection__dot"
         style={{
           backgroundColor: color,
           boxShadow: `0 0 6px ${color}`,
@@ -74,7 +74,7 @@ export function ConnectionStatus({ className, style, children }: ConnectionStatu
       />
       <span>{label}</span>
       {conferenceStatus === 'joined' && (
-        <span className="jr-connection__count">
+        <span className="rj-connection__count">
           · {participantCount} {participantCount === 1 ? 'participant' : 'participants'}
         </span>
       )}

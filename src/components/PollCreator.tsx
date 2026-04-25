@@ -34,19 +34,19 @@ export function PollCreator({ className, style, minOptions = 2, maxOptions = 10,
   if (children) return <>{children(createPoll)}</>;
 
   return (
-    <div className={`jr-panel ${className || ''}`} style={style}>
-      <label className="jr-label">Question</label>
-      <input className="jr-input" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question..." />
-      <label className="jr-label">Options</label>
+    <div className={`rj-panel ${className || ''}`} style={style}>
+      <label className="rj-label">Question</label>
+      <input className="rj-input" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question..." />
+      <label className="rj-label">Options</label>
       {options.map((opt, i) => (
-        <input key={i} className="jr-input" value={opt}
+        <input key={i} className="rj-input" value={opt}
           onChange={(e) => { const n = [...options]; n[i] = e.target.value; setOptions(n); }}
           placeholder={`Option ${i + 1}`} />
       ))}
       {options.length < maxOptions && (
-        <button className="jr-btn-sm jr-btn-sm--ghost" onClick={() => setOptions([...options, ''])} type="button">+ Add option</button>
+        <button className="rj-btn-sm rj-btn-sm--ghost" onClick={() => setOptions([...options, ''])} type="button">+ Add option</button>
       )}
-      <button className="jr-btn-sm jr-btn-sm--primary" onClick={handleCreate} type="button">Create Poll</button>
+      <button className="rj-btn-sm rj-btn-sm--primary" onClick={handleCreate} type="button">Create Poll</button>
     </div>
   );
 }

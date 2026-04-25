@@ -24,11 +24,11 @@ export function TogglePolls({ className, style, asChild, children }: TogglePolls
     return <Slot onClick={toggle} data-state={dataState} aria-label={label} title={label} className={className} style={style}>{children}</Slot>;
   }
   return (
-    <button className={`jr-btn ${isOpen ? 'jr-btn--accent' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${isOpen ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
       style={{ position: 'relative', ...style }}
       onClick={toggle} data-state={dataState} title={label} aria-label={label} type="button">
       <PollIcon />
-      {activeCount > 0 && <span className="jr-badge jr-badge--accent">{activeCount}</span>}
+      {activeCount > 0 && <span className="rj-badge rj-badge--accent">{activeCount}</span>}
     </button>
   );
 }

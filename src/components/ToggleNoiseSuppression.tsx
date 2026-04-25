@@ -43,7 +43,7 @@ export function ToggleNoiseSuppression({ className, style, asChild, children }: 
   }
 
   return (
-    <button className={`jr-btn ${noiseSuppressionEnabled ? 'jr-btn--success' : 'jr-btn--active'} ${className || ''}`}
+    <button className={`rj-btn ${noiseSuppressionEnabled ? 'rj-btn--success' : 'rj-btn--active'} ${className || ''}`}
       style={style}
       onClick={toggleNoiseSuppression} data-state={dataState} title={label} aria-label={label} type="button">
       <NoiseIcon />

@@ -18,13 +18,13 @@ export function ChatMessages({ className, style, renderMessage, children }: Chat
   if (children) return <>{children(messages)}</>;
 
   return (
-    <div className={`jr-msg-list ${className || ''}`} style={style}>
+    <div className={`rj-msg-list ${className || ''}`} style={style}>
       {messages.map((msg) => {
         if (renderMessage) return <React.Fragment key={msg.id}>{renderMessage(msg)}</React.Fragment>;
         return (
-          <div key={msg.id} className={`jr-msg ${msg.isLocal ? 'jr-msg--local' : 'jr-msg--remote'}`}>
-            <span className="jr-msg__sender">{msg.displayName}{msg.isPrivate ? ' (private)' : ''}</span>
-            <div className={`jr-msg__bubble ${msg.isLocal ? 'jr-msg__bubble--local' : ''}`}>{msg.text}</div>
+          <div key={msg.id} className={`rj-msg ${msg.isLocal ? 'rj-msg--local' : 'rj-msg--remote'}`}>
+            <span className="rj-msg__sender">{msg.displayName}{msg.isPrivate ? ' (private)' : ''}</span>
+            <div className={`rj-msg__bubble ${msg.isLocal ? 'rj-msg__bubble--local' : ''}`}>{msg.text}</div>
           </div>
         );
       })}

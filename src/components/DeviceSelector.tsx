@@ -93,10 +93,10 @@ export function DeviceSelector({
         : 'Speaker');
 
   return (
-    <div className={`jr-field-group ${className || ''}`} style={style}>
-      <label className="jr-label">{defaultLabel}</label>
+    <div className={`rj-field-group ${className || ''}`} style={style}>
+      <label className="rj-label">{defaultLabel}</label>
       <select
-        className="jr-select"
+        className="rj-select"
         value={selectedId || ''}
         onChange={(e) => handleSelect(e.target.value)}
       >

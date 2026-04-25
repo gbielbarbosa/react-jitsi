@@ -28,7 +28,7 @@ export function MuteAllButton({ className, style, mediaType = 'audio', asChild, 
   }
 
   return (
-    <button className={`jr-mute-all-btn ${className || ''}`} style={style}
+    <button className={`rj-mute-all-btn ${className || ''}`} style={style}
       onClick={handleMuteAll} title={label} aria-label={label} type="button">
       {mediaType === 'audio' ? 'Mute All' : 'Disable All Cameras'}
     </button>

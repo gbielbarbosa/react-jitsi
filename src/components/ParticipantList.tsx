@@ -87,34 +87,34 @@ export function ParticipantList({
   }
 
   return (
-    <div className={`jr-participant-list ${className || ''}`} style={style}>
+    <div className={`rj-participant-list ${className || ''}`} style={style}>
       {participantsList.map((participant) => {
         if (renderParticipant) {
           return <React.Fragment key={participant.id}>{renderParticipant(participant)}</React.Fragment>;
         }
 
         return (
-          <div key={participant.id} className="jr-participant-item">
+          <div key={participant.id} className="rj-participant-item">
             <div
-              className="jr-avatar jr-avatar--sm"
+              className="rj-avatar rj-avatar--sm"
               style={{ backgroundColor: getAvatarColor(participant.id) }}
             >
               {participant.displayName.charAt(0).toUpperCase()}
             </div>
 
-            <span className="jr-participant-item__name">
+            <span className="rj-participant-item__name">
               {participant.displayName}
-              {participant.isLocal && <span className="jr-participant-item__you">(You)</span>}
+              {participant.isLocal && <span className="rj-participant-item__you">(You)</span>}
             </span>
 
-            <div className="jr-participant-item__icons">
+            <div className="rj-participant-item__icons">
               {participant.audioMuted && (
-                <div className="jr-status-icon jr-status-icon--muted">
+                <div className="rj-status-icon rj-status-icon--muted">
                   <MicMutedSmallIcon />
                 </div>
               )}
               {participant.videoMuted && (
-                <div className="jr-status-icon jr-status-icon--muted">
+                <div className="rj-status-icon rj-status-icon--muted">
                   <VideoMutedSmallIcon />
                 </div>
               )}
