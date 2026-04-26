@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useJitsiContext } from '../JitsiContext';
 import { JitsiProvider } from '../JitsiProvider';
-import { LocalVideo } from './LocalVideo';
-import { RemoteVideos } from './RemoteVideos';
+import { VideoLayout } from './VideoLayout';
 import { ToggleAudio } from './ToggleAudio';
 import { ToggleVideo } from './ToggleVideo';
 import { ScreenShareButton } from './ScreenShareButton';
@@ -22,8 +21,10 @@ import { PollDisplay } from './PollDisplay';
 import { DeviceSelector } from './DeviceSelector';
 import { AudioOutputSelector } from './AudioOutputSelector';
 import { PerformanceSettings } from './PerformanceSettings';
-import { ChatIcon, PollIcon, EmptyRoomIcon } from '../icons';
+import { ChatIcon, PollIcon, EmptyRoomIcon, Settings, MoreHorizontal } from '../icons';
 import type { JitsiProviderProps } from '../types';
+import { Popover, PopoverContent, PopoverTrigger } from '@radix-ui/react-popover';
+import { ToggleWhiteboard } from './ToggleWhiteboard';
 
 export interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
   /** Meeting title displayed in the header */
@@ -34,6 +35,8 @@ export interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> 
   showSidebar?: boolean;
   /** Show settings button (default: true) */
   showSettings?: boolean;
+  /** Component to render inside the grid when the whiteboard is active */
+  whiteboardComponent?: React.ReactNode;
 }
 
 type SidebarTab = 'participants' | 'chat' | 'polls' | 'settings';
@@ -67,12 +70,9 @@ function ScreenSharePreview() {
 // Inner meeting UI (consumes context)
 // ---------------------------------------------------------------------------
 
-function MeetingUI({ title, showSidebar = true, showSettings = true }: {
-  title?: string; showSidebar?: boolean; showSettings?: boolean;
+function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboardComponent }: {
+  title?: string; showSidebar?: boolean; showSettings?: boolean; whiteboardComponent?: React.ReactNode;
 }) {
-  const { participants } = useJitsiContext();
-  const hasRemoteParticipants = Array.from(participants.values()).some((p) => !p.isLocal);
-
   const [sidebarOpen, setSidebarOpen] = useState(showSidebar);
   const [activeTab, setActiveTab] = useState<SidebarTab>('participants');
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -96,20 +96,10 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
         <div className="rj-meeting__video-area">
           <div className="rj-meeting__remote-area">
             <ScreenSharePreview />
-            <RemoteVideos style={{ maxHeight: '100%' }} />
-            {!hasRemoteParticipants && (
-              <div id="empty-room" className="rj-meeting__empty">
-                <EmptyRoomIcon />
-                <span style={{ fontSize: '14px' }}>Waiting for others to join...</span>
-              </div>
-            )}
+            <VideoLayout whiteboardComponent={whiteboardComponent} />
           </div>
 
           <Captions />
-
-          <div className="rj-meeting__local-video">
-            <LocalVideo />
-          </div>
         </div>
 
         {/* Sidebar */}
@@ -153,6 +143,7 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
                 <div className="rj-meeting__settings-group">
                   <DeviceSelector kind="audioinput" label="Microphone" />
                   <DeviceSelector kind="videoinput" label="Camera" />
+                  <ToggleMirror />
                   <AudioOutputSelector label="Speaker" />
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
                     <PerformanceSettings style={{ padding: 0, backgroundColor: 'transparent' }} />
@@ -166,62 +157,82 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
 
       {/* Toolbar */}
       <div className="rj-meeting__toolbar">
-        <ToggleAudio />
-        <ToggleVideo />
-        <ToggleMirror />
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.12)' }} />
-        <ScreenShareButton />
-        <ToggleRecording />
-        <ToggleCaptions />
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.12)' }} />
-        <ToggleChat>
-          {(_isOpen, _toggle, unread) => (
-            <button type="button"
-              className={`rj-btn ${sidebarOpen && activeTab === 'chat' ? 'rj-btn--accent' : 'rj-btn--active'}`}
-              style={{ position: 'relative' }}
-              onClick={() => { setSidebarOpen(true); setActiveTab('chat'); }}>
-              <ChatIcon />
-              {unread > 0 && (
-                <span className="rj-badge rj-badge--danger">{unread > 99 ? '99+' : unread}</span>
-              )}
-            </button>
-          )}
-        </ToggleChat>
-        <TogglePolls>
-          {(_isOpen, _toggle, polls) => {
-            const active = polls.filter(p => p.isOpen).length;
-            return (
+        <div className='rj-meeting__toolbar-section'>
+          {/* TODO: Room timer */}
+        </div>
+        <div className='rj-meeting__toolbar-section' style={{ justifyContent: "center" }}>
+          <ToggleAudio />
+          <ToggleVideo />
+          <ScreenShareButton />
+          <ToggleRecording />
+          <ToggleCaptions />
+          <Popover>
+            <PopoverTrigger asChild>
               <button type="button"
-                className={`rj-btn ${sidebarOpen && activeTab === 'polls' ? 'rj-btn--accent' : 'rj-btn--active'}`}
+                className="rj-btn rj-btn--active"
+                title="More options">
+                <MoreHorizontal />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <ToggleWhiteboard />
+            </PopoverContent>
+          </Popover>
+          <LeaveButton label="Leave" />
+        </div>
+        <div className='rj-meeting__toolbar-section' style={{ justifyContent: "flex-end" }}>
+          <button type="button"
+            className={`rj-btn ${sidebarOpen && activeTab === 'participants' ? 'rj-btn--accent' : 'rj-btn--active'}`}
+            onClick={() => { setSidebarOpen(s => activeTab === "participants" ? !s : true); setActiveTab('participants'); }}
+            title="Toggle participants">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </button>
+          <ToggleChat>
+            {(_isOpen, _toggle, unread) => (
+              <button type="button"
+                className={`rj-btn ${sidebarOpen && activeTab === 'chat' ? 'rj-btn--accent' : 'rj-btn--active'}`}
                 style={{ position: 'relative' }}
-                onClick={() => { setSidebarOpen(true); setActiveTab('polls'); }}>
-                <PollIcon />
-                {active > 0 && (
-                  <span className="rj-badge rj-badge--accent">{active}</span>
+                onClick={() => { setSidebarOpen(s => activeTab === "chat" ? !s : true); setActiveTab('chat'); }}>
+                <ChatIcon />
+                {unread > 0 && (
+                  <span className="rj-badge rj-badge--danger">{unread > 99 ? '99+' : unread}</span>
                 )}
               </button>
-            );
-          }}
-        </TogglePolls>
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.12)' }} />
-        <button type="button"
-          className={`rj-btn ${sidebarOpen && activeTab === 'participants' ? 'rj-btn--accent' : 'rj-btn--active'}`}
-          onClick={() => { setSidebarOpen(s => !s); setActiveTab('participants'); }}
-          title="Toggle participants">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-        </button>
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.12)' }} />
-        <LeaveButton label="Leave" />
+            )}
+          </ToggleChat>
+          <TogglePolls>
+            {(_isOpen, _toggle, polls) => {
+              const active = polls.filter(p => p.isOpen).length;
+              return (
+                <button type="button"
+                  className={`rj-btn ${sidebarOpen && activeTab === 'polls' ? 'rj-btn--accent' : 'rj-btn--active'}`}
+                  style={{ position: 'relative' }}
+                  onClick={() => { setSidebarOpen(s => activeTab === "polls" ? !s : true); setActiveTab('polls'); }}>
+                  <PollIcon />
+                  {active > 0 && (
+                    <span className="rj-badge rj-badge--accent">{active}</span>
+                  )}
+                </button>
+              );
+            }}
+          </TogglePolls>
+          <button type="button"
+            className={`rj-btn ${sidebarOpen && activeTab === 'settings' ? 'rj-btn--accent' : 'rj-btn--active'}`}
+            onClick={() => { setSidebarOpen(s => activeTab === "settings" ? !s : true); setActiveTab('settings'); }}
+            title="Toggle settings">
+            <Settings />
+          </button>
+        </div>
       </div>
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// JitsiMeeting — Pre-built, full-featured meeting component
+// JitsiMeeting - Pre-built, full-featured meeting component
 // ---------------------------------------------------------------------------
 
 /**
@@ -248,14 +259,15 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
 export function JitsiMeeting({
   title,
   height = '100vh',
-  showSidebar = true,
+  showSidebar = false,
   showSettings = true,
+  whiteboardComponent,
   ...providerProps
 }: JitsiMeetingProps) {
   return (
     <div className="rj-meeting" style={{ height }}>
       <JitsiProvider {...providerProps}>
-        <MeetingUI title={title} showSidebar={showSidebar} showSettings={showSettings} />
+        <MeetingUI title={title} showSidebar={showSidebar} showSettings={showSettings} whiteboardComponent={whiteboardComponent} />
       </JitsiProvider>
     </div>
   );

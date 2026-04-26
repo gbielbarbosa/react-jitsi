@@ -292,8 +292,8 @@ export interface VirtualBackgroundConfig {
 export interface WhiteboardData {
   type: string;
   payload: unknown;
-  senderId: string;
-  timestamp: number;
+  senderId?: string;
+  timestamp?: number;
 }
 
 // ---------------------------------------------------------------------------

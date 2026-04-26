@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// react-jitsi — Composable React SDK for Jitsi Meet
+// react-jitsi - Composable React SDK for Jitsi Meet
 // ---------------------------------------------------------------------------
 
 // Styles (consumers must import this for default component styling)
@@ -18,6 +18,7 @@ export { Slot } from './utils/Slot';
 // Media components
 export { LocalVideo } from './components/LocalVideo';
 export { RemoteVideos } from './components/RemoteVideos';
+export { VideoLayout } from './components/VideoLayout';
 export { AudioTrack } from './components/AudioTrack';
 
 // Control components

@@ -1,8 +1,10 @@
 'use strict';
 
-var React4 = require('react');
+var React5 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
+var reactRnd = require('react-rnd');
 var HoverCard = require('@radix-ui/react-hover-card');
+var reactPopover = require('@radix-ui/react-popover');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
@@ -24,13 +26,13 @@ function _interopNamespace(e) {
   return Object.freeze(n);
 }
 
-var React4__default = /*#__PURE__*/_interopDefault(React4);
+var React5__default = /*#__PURE__*/_interopDefault(React5);
 var HoverCard__namespace = /*#__PURE__*/_interopNamespace(HoverCard);
 
 // src/JitsiProvider.tsx
-var JitsiContext = React4.createContext(null);
+var JitsiContext = React5.createContext(null);
 function useJitsiContext() {
-  const ctx = React4.useContext(JitsiContext);
+  const ctx = React5.useContext(JitsiContext);
   if (!ctx) {
     throw new Error(
       '[react-jitsi] useJitsi() must be used within a <JitsiProvider>. Wrap your component tree with <JitsiProvider domain="..." roomName="...">.'
@@ -219,33 +221,33 @@ function JitsiProvider({
   onConnectionStatusChanged,
   children
 }) {
-  const [state, dispatch] = React4.useReducer(jitsiReducer, initialState);
-  const connectionRef = React4.useRef(null);
-  const conferenceRef = React4.useRef(null);
-  const localTracksRef = React4.useRef([]);
-  const screenTrackRef = React4.useRef(null);
-  const remoteTracksRef = React4.useRef(/* @__PURE__ */ new Map());
+  const [state, dispatch] = React5.useReducer(jitsiReducer, initialState);
+  const connectionRef = React5.useRef(null);
+  const conferenceRef = React5.useRef(null);
+  const localTracksRef = React5.useRef([]);
+  const screenTrackRef = React5.useRef(null);
+  const remoteTracksRef = React5.useRef(/* @__PURE__ */ new Map());
   remoteTracksRef.current = state.remoteTracks;
-  const noiseEffectRef = React4.useRef(null);
-  const vbEffectRef = React4.useRef(null);
-  const whiteboardHandlersRef = React4.useRef(/* @__PURE__ */ new Set());
-  const isLeavingRef = React4.useRef(false);
-  const isInitializedRef = React4.useRef(false);
-  const isMountedRef = React4.useRef(true);
-  const recordingSessionIdRef = React4.useRef(null);
-  const devicesRef = React4.useRef(devices);
+  const noiseEffectRef = React5.useRef(null);
+  const vbEffectRef = React5.useRef(null);
+  const whiteboardHandlersRef = React5.useRef(/* @__PURE__ */ new Set());
+  const isLeavingRef = React5.useRef(false);
+  const isInitializedRef = React5.useRef(false);
+  const isMountedRef = React5.useRef(true);
+  const recordingSessionIdRef = React5.useRef(null);
+  const devicesRef = React5.useRef(devices);
   devicesRef.current = devices;
-  const configOverwriteRef = React4.useRef(configOverwrite);
+  const configOverwriteRef = React5.useRef(configOverwrite);
   configOverwriteRef.current = configOverwrite;
-  const userInfoRef = React4.useRef(userInfo);
+  const userInfoRef = React5.useRef(userInfo);
   userInfoRef.current = userInfo;
-  const serviceUrlRef = React4.useRef(serviceUrlProp);
+  const serviceUrlRef = React5.useRef(serviceUrlProp);
   serviceUrlRef.current = serviceUrlProp;
-  const connectionOptionsRef = React4.useRef(connectionOptionsProp);
+  const connectionOptionsRef = React5.useRef(connectionOptionsProp);
   connectionOptionsRef.current = connectionOptionsProp;
-  const tenantRef = React4.useRef(tenant);
+  const tenantRef = React5.useRef(tenant);
   tenantRef.current = tenant;
-  const callbacksRef = React4.useRef({
+  const callbacksRef = React5.useRef({
     onConferenceJoined,
     onConferenceLeft,
     onParticipantJoined,
@@ -263,10 +265,10 @@ function JitsiProvider({
     onError,
     onConnectionStatusChanged
   };
-  const safeDispatch = React4.useCallback((action) => {
+  const safeDispatch = React5.useCallback((action) => {
     if (isMountedRef.current) dispatch(action);
   }, []);
-  const cleanup = React4.useCallback(async () => {
+  const cleanup = React5.useCallback(async () => {
     isLeavingRef.current = true;
     if (screenTrackRef.current) {
       try {
@@ -299,13 +301,13 @@ function JitsiProvider({
     safeDispatch({ type: "RESET" });
     isLeavingRef.current = false;
   }, [safeDispatch]);
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     if (isInitializedRef.current || !autoJoin) return;
     isInitializedRef.current = true;
     const JitsiMeetJS = getJitsiMeetJS();
@@ -612,6 +614,7 @@ function JitsiProvider({
         }
         if (payload.type === "whiteboard-data") {
           const wd = payload.data;
+          if (wd.senderId === conference.myUserId()) return;
           whiteboardHandlersRef.current.forEach((h) => h(wd));
         }
         if (payload.type === "poll-data") {
@@ -663,13 +666,13 @@ function JitsiProvider({
       cleanup();
     };
   }, [domain, roomName, token, autoJoin, safeDispatch, cleanup]);
-  const toggleAudio = React4.useCallback(async () => {
+  const toggleAudio = React5.useCallback(async () => {
     const t = localTracksRef.current.find((t2) => t2.getType() === "audio");
     if (!t) return;
     t.isMuted() ? await t.unmute() : await t.mute();
     dispatch({ type: "SET_AUDIO_MUTED", muted: t.isMuted() });
   }, []);
-  const toggleVideo = React4.useCallback(async () => {
+  const toggleVideo = React5.useCallback(async () => {
     const t = localTracksRef.current.find((t2) => t2.getType() === "video" && t2.getVideoType?.() !== "desktop");
     if (!t) return;
     if (t.isMuted()) {
@@ -679,10 +682,10 @@ function JitsiProvider({
     }
     dispatch({ type: "SET_VIDEO_MUTED", muted: t.isMuted() });
   }, []);
-  const leave = React4.useCallback(async () => {
+  const leave = React5.useCallback(async () => {
     await cleanup();
   }, [cleanup]);
-  const startScreenShare = React4.useCallback(async (options) => {
+  const startScreenShare = React5.useCallback(async (options) => {
     if (!conferenceRef.current) return;
     try {
       const JitsiMeetJS = getJitsiMeetJS();
@@ -713,7 +716,7 @@ function JitsiProvider({
       if (err?.name !== "gum.screensharing_user_canceled") callbacksRef.current.onError?.(err);
     }
   }, []);
-  const stopScreenShare = React4.useCallback(async () => {
+  const stopScreenShare = React5.useCallback(async () => {
     if (!conferenceRef.current || !screenTrackRef.current) return;
     try {
       try {
@@ -728,10 +731,10 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const setDisplayName = React4.useCallback((name) => {
+  const setDisplayName = React5.useCallback((name) => {
     conferenceRef.current?.setDisplayName(name);
   }, []);
-  const getDevices = React4.useCallback(() => {
+  const getDevices = React5.useCallback(() => {
     return new Promise((resolve) => {
       try {
         getJitsiMeetJS().mediaDevices.enumerateDevices((d) => resolve(d));
@@ -740,7 +743,7 @@ function JitsiProvider({
       }
     });
   }, []);
-  const switchCamera = React4.useCallback(async (deviceId) => {
+  const switchCamera = React5.useCallback(async (deviceId) => {
     if (!conferenceRef.current) return;
     try {
       const newTracks = await getJitsiMeetJS().createLocalTracks({ devices: ["video"], cameraDeviceId: deviceId });
@@ -760,7 +763,7 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const switchMicrophone = React4.useCallback(async (deviceId) => {
+  const switchMicrophone = React5.useCallback(async (deviceId) => {
     if (!conferenceRef.current) return;
     try {
       const oa = localTracksRef.current.find((t) => t.getType() === "audio");
@@ -785,17 +788,17 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const setAudioOutput = React4.useCallback(async (deviceId) => {
+  const setAudioOutput = React5.useCallback(async (deviceId) => {
     try {
       await getJitsiMeetJS().mediaDevices.setAudioOutputDevice(deviceId);
     } catch (err) {
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const toggleMirror = React4.useCallback(() => {
+  const toggleMirror = React5.useCallback(() => {
     dispatch({ type: "SET_MIRRORED", mirrored: !state.isMirrored });
   }, [state.isMirrored]);
-  const setVirtualBackground = React4.useCallback(async (config) => {
+  const setVirtualBackground = React5.useCallback(async (config) => {
     const videoTrack = localTracksRef.current.find((t) => t.getType() === "video" && t.getVideoType?.() !== "desktop");
     if (!videoTrack) return;
     try {
@@ -811,10 +814,10 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const removeVirtualBackground = React4.useCallback(async () => {
+  const removeVirtualBackground = React5.useCallback(async () => {
     await setVirtualBackground({ type: "none" });
   }, [setVirtualBackground]);
-  const setNoiseSuppression = React4.useCallback(async (effect) => {
+  const setNoiseSuppression = React5.useCallback(async (effect) => {
     const audioTrack = localTracksRef.current.find((t) => t.getType() === "audio");
     if (!audioTrack) return;
     try {
@@ -831,12 +834,12 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const toggleNoiseSuppression = React4.useCallback(async () => {
+  const toggleNoiseSuppression = React5.useCallback(async () => {
     if (noiseEffectRef.current) {
       await setNoiseSuppression(null);
     }
   }, [setNoiseSuppression]);
-  const sendMessage = React4.useCallback((text, to) => {
+  const sendMessage = React5.useCallback((text, to) => {
     if (!conferenceRef.current) return;
     if (to) {
       conferenceRef.current.sendMessage(text, to, false);
@@ -857,22 +860,22 @@ function JitsiProvider({
       }
     });
   }, [userInfo?.displayName]);
-  const sendPrivateMessage = React4.useCallback((text, participantId) => {
+  const sendPrivateMessage = React5.useCallback((text, participantId) => {
     sendMessage(text, participantId);
   }, [sendMessage]);
-  const clearMessages = React4.useCallback(() => {
+  const clearMessages = React5.useCallback(() => {
     dispatch({ type: "CLEAR_MESSAGES" });
   }, []);
-  const markMessagesRead = React4.useCallback(() => {
+  const markMessagesRead = React5.useCallback(() => {
     dispatch({ type: "MARK_MESSAGES_READ" });
   }, []);
-  const toggleCaptions = React4.useCallback(() => {
+  const toggleCaptions = React5.useCallback(() => {
     dispatch({ type: "SET_CAPTIONS_ENABLED", enabled: !state.captionsEnabled });
   }, [state.captionsEnabled]);
-  const clearCaptions = React4.useCallback(() => {
+  const clearCaptions = React5.useCallback(() => {
     dispatch({ type: "CLEAR_CAPTIONS" });
   }, []);
-  const startRecording = React4.useCallback(async (options) => {
+  const startRecording = React5.useCallback(async (options) => {
     if (!conferenceRef.current) return;
     try {
       await conferenceRef.current.startRecording(options);
@@ -880,7 +883,7 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const stopRecording = React4.useCallback(async () => {
+  const stopRecording = React5.useCallback(async () => {
     if (!conferenceRef.current || !recordingSessionIdRef.current) return;
     try {
       await conferenceRef.current.stopRecording(recordingSessionIdRef.current);
@@ -888,20 +891,25 @@ function JitsiProvider({
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const toggleWhiteboard = React4.useCallback(() => {
+  const toggleWhiteboard = React5.useCallback(() => {
     dispatch({ type: "SET_WHITEBOARD_ACTIVE", active: !state.whiteboardActive });
   }, [state.whiteboardActive]);
-  const sendWhiteboardData = React4.useCallback((data) => {
+  const sendWhiteboardData = React5.useCallback((data) => {
     if (!conferenceRef.current) return;
-    conferenceRef.current.broadcastEndpointMessage({ type: "whiteboard-data", data });
+    const fullData = {
+      ...data,
+      senderId: conferenceRef.current.myUserId(),
+      timestamp: Date.now()
+    };
+    conferenceRef.current.broadcastEndpointMessage({ type: "whiteboard-data", data: fullData });
   }, []);
-  const onWhiteboardData = React4.useCallback((handler) => {
+  const onWhiteboardData = React5.useCallback((handler) => {
     whiteboardHandlersRef.current.add(handler);
     return () => {
       whiteboardHandlersRef.current.delete(handler);
     };
   }, []);
-  const createPoll = React4.useCallback((question, options) => {
+  const createPoll = React5.useCallback((question, options) => {
     if (!conferenceRef.current) return;
     const poll = {
       id: nextPollId(),
@@ -916,9 +924,9 @@ function JitsiProvider({
     dispatch({ type: "SET_ACTIVE_POLL", poll });
     conferenceRef.current.broadcastEndpointMessage({ type: "poll-data", action: "create", poll });
   }, [userInfo?.displayName]);
-  const pollsRef = React4.useRef(state.polls);
+  const pollsRef = React5.useRef(state.polls);
   pollsRef.current = state.polls;
-  const votePoll = React4.useCallback((pollId, optionIndex) => {
+  const votePoll = React5.useCallback((pollId, optionIndex) => {
     if (!conferenceRef.current) return;
     const myId = conferenceRef.current.myUserId();
     const poll = pollsRef.current.find((p) => p.id === pollId);
@@ -931,7 +939,7 @@ function JitsiProvider({
     dispatch({ type: "UPDATE_POLL", poll: updatedPoll });
     conferenceRef.current.broadcastEndpointMessage({ type: "poll-data", action: "vote", poll: updatedPoll });
   }, []);
-  const closePoll = React4.useCallback((pollId) => {
+  const closePoll = React5.useCallback((pollId) => {
     if (!conferenceRef.current) return;
     const poll = pollsRef.current.find((p) => p.id === pollId);
     if (!poll) return;
@@ -940,29 +948,29 @@ function JitsiProvider({
     dispatch({ type: "SET_ACTIVE_POLL", poll: null });
     conferenceRef.current.broadcastEndpointMessage({ type: "poll-data", action: "close", poll: closed });
   }, []);
-  const setVideoQuality = React4.useCallback((maxHeight) => {
+  const setVideoQuality = React5.useCallback((maxHeight) => {
     conferenceRef.current?.setReceiverConstraints({ defaultConstraints: { maxHeight } });
   }, []);
-  const setSenderQuality = React4.useCallback(async (maxHeight) => {
+  const setSenderQuality = React5.useCallback(async (maxHeight) => {
     try {
       await conferenceRef.current?.setSenderVideoConstraint(maxHeight);
     } catch (err) {
       callbacksRef.current.onError?.(err);
     }
   }, []);
-  const setMaxVisibleParticipants = React4.useCallback((n) => {
+  const setMaxVisibleParticipants = React5.useCallback((n) => {
     conferenceRef.current?.setReceiverConstraints({ lastN: n });
   }, []);
-  const kickParticipant = React4.useCallback((id, reason) => {
+  const kickParticipant = React5.useCallback((id, reason) => {
     conferenceRef.current?.kickParticipant(id, reason);
   }, []);
-  const muteParticipant = React4.useCallback((id, mediaType) => {
+  const muteParticipant = React5.useCallback((id, mediaType) => {
     conferenceRef.current?.muteParticipant(id, mediaType || "audio");
   }, []);
-  const grantModerator = React4.useCallback((id) => {
+  const grantModerator = React5.useCallback((id) => {
     conferenceRef.current?.grantOwner(id);
   }, []);
-  const muteAll = React4.useCallback((mediaType) => {
+  const muteAll = React5.useCallback((mediaType) => {
     if (!conferenceRef.current) return;
     const mt = mediaType || "audio";
     conferenceRef.current.getParticipants().forEach((p) => {
@@ -1038,6 +1046,39 @@ function JitsiProvider({
 // src/useJitsi.ts
 function useJitsi() {
   return useJitsiContext();
+}
+
+// src/utils/layout.ts
+function calculateGridSettings(containerWidth, containerHeight, count, aspectRatio = 16 / 9, gap = 8) {
+  if (count === 0 || containerWidth === 0 || containerHeight === 0) {
+    return { cols: 1, rows: 1, width: 0, height: 0 };
+  }
+  let bestLayout = { cols: 1, rows: 1, width: 0, height: 0 };
+  let maxArea = 0;
+  for (let cols = 1; cols <= count; cols++) {
+    const rows = Math.ceil(count / cols);
+    const availableWidth = containerWidth - (cols + 1) * gap;
+    const availableHeight = containerHeight - (rows + 1) * gap;
+    let itemWidth = availableWidth / cols;
+    let itemHeight = itemWidth / aspectRatio;
+    if (itemHeight * rows > availableHeight) {
+      itemHeight = availableHeight / rows;
+      itemWidth = itemHeight * aspectRatio;
+    }
+    if (itemWidth > 0 && itemHeight > 0) {
+      const area = itemWidth * itemHeight;
+      if (area > maxArea) {
+        maxArea = area;
+        bestLayout = {
+          cols,
+          rows,
+          width: itemWidth,
+          height: itemHeight
+        };
+      }
+    }
+  }
+  return bestLayout;
 }
 function ParticipantStatsPanel({ stats, className, style, children }) {
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(stats) });
@@ -1134,14 +1175,14 @@ function ConnectionIndicator({ participant, stats, className, style, children })
     ) })
   ] });
 }
-function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = true }) {
-  const videoRef = React4.useRef(null);
+function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = true, objectFit = "cover", children }) {
+  const videoRef = React5.useRef(null);
   const { localTracks, videoMuted, participants, localParticipantId, isMirrored } = useJitsiContext();
   const shouldMirror = mirror !== void 0 ? mirror : isMirrored;
   const videoTrack = localTracks.find(
     (t) => t.getType() === "video" && t.getVideoType?.() !== "desktop"
   );
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     const el = videoRef.current;
     if (!el || !videoTrack) return;
     videoTrack.attach(el);
@@ -1153,14 +1194,19 @@ function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = 
   const videoStyle = {
     transform: shouldMirror ? "scaleX(-1)" : void 0,
     // Hide but keep mounted when muted
-    display: isHidden ? "none" : void 0
+    display: isHidden ? "none" : void 0,
+    objectFit
   };
   const localParticipant = localParticipantId ? participants.get(localParticipantId) : null;
   const localName = localParticipant?.displayName || "Me";
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-local-video ${className || ""}`, style, children: [
+    localParticipant && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile__name", style: { display: "flex", alignItems: "center", gap: "8px" }, children: [
+      /* @__PURE__ */ jsxRuntime.jsx("span", { children: "You" }),
+      /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant: localParticipant })
+    ] }),
     /* @__PURE__ */ jsxRuntime.jsx("video", { className: "rj-local-video__video", ref: videoRef, autoPlay: true, playsInline: true, muted, style: videoStyle }),
     isHidden && showPlaceholder && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-local-video__placeholder", children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-avatar", children: localName.charAt(0).toUpperCase() }) }),
-    localParticipant && /* @__PURE__ */ jsxRuntime.jsx("div", { style: { position: "absolute", bottom: "8px", right: "8px", zIndex: 10, padding: "4px", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: "4px" }, children: /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant: localParticipant }) })
+    children
   ] });
 }
 var defaultProps = {
@@ -1279,6 +1325,16 @@ var EmptyRoomIcon = () => /* @__PURE__ */ jsxRuntime.jsxs(
     ]
   }
 );
+var Pin = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
+var PinOverlay = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "14px", viewBox: "0 -960 960 960", width: "14px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
+var PinOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M680-840v80h-40v327l-80-80v-247H400v87l-87-87-33-33v-47h400ZM480-40l-40-40v-240H240v-80l80-80v-46L56-792l56-56 736 736-58 56-264-264h-6v240l-40 40ZM354-400h92l-44-44-2-2-46 46Zm126-193Zm-78 149Z" }) });
+var Grid = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133ZM200-413h133v-134H200v134Zm213 0h134v-134H413v134Zm214 0h133v-134H627v134ZM200-627h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133Z" }) });
+var GridOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M333-200v-133H200v133h133Zm214 0v-100l-33-33H413v133h134Zm80 0Zm116-133Zm-410-80v-101l-33-33H200v134h133Zm80 0Zm347 0v-134H627v99l35 35h98ZM529-547Zm-329-80Zm347 0v-133H413v98l35 35h99Zm213 0v-133H627v133h133ZM316-760Zm524 525L235-840h525q33 0 56.5 23.5T840-760v525ZM200-120q-33 0-56.5-23.5T120-200v-640l720 720H200Zm619 92L28-820l56-56L876-84l-57 56Z" }) });
+var Fullscreen = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M120-120v-200h80v120h120v80H120Zm520 0v-80h120v-120h80v200H640ZM120-640v-200h200v80H200v120h-80Zm640 0v-120H640v-80h200v200h-80Z" }) });
+var FullscreenExit = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-120v-120H120v-80h200v200h-80Zm400 0v-200h200v80H720v120h-80ZM120-640v-80h120v-120h80v200H120Zm520 0v-200h80v120h120v80H640Z" }) });
+var MoreHorizontal = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" }) });
+var MoreVertical = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z" }) });
+var Settings = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "20", viewBox: "0 -960 960 960", width: "20", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }) });
 function RemoteVideos({
   className,
   style,
@@ -1305,15 +1361,18 @@ function RemoteVideos({
 function RemoteParticipantTile({
   participant,
   tracks,
-  renderParticipant
+  renderParticipant,
+  objectFit = "cover",
+  children,
+  style
 }) {
-  const videoRef = React4.useRef(null);
-  const screenRef = React4.useRef(null);
-  const audioRef = React4.useRef(null);
+  const videoRef = React5.useRef(null);
+  const screenRef = React5.useRef(null);
+  const audioRef = React5.useRef(null);
   const cameraTrack = tracks.find((t) => t.getType() === "video" && t.getVideoType?.() !== "desktop");
   const screenTrack = tracks.find((t) => t.getType() === "video" && t.getVideoType?.() === "desktop");
   const audioTrack = tracks.find((t) => t.getType() === "audio");
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     const el = videoRef.current;
     if (!el || !cameraTrack) return;
     cameraTrack.attach(el);
@@ -1321,7 +1380,7 @@ function RemoteParticipantTile({
       cameraTrack.detach(el);
     };
   }, [cameraTrack]);
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     const el = screenRef.current;
     if (!el || !screenTrack) return;
     screenTrack.attach(el);
@@ -1329,7 +1388,7 @@ function RemoteParticipantTile({
       screenTrack.detach(el);
     };
   }, [screenTrack]);
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     const el = audioRef.current;
     if (!el || !audioTrack) return;
     audioTrack.attach(el);
@@ -1346,14 +1405,13 @@ function RemoteParticipantTile({
       /* @__PURE__ */ jsxRuntime.jsx("video", { className: "rj-remote-tile__video", ref: screenRef, autoPlay: true, playsInline: true }),
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile__name", style: { display: "flex", alignItems: "center", gap: "8px" }, children: [
         /* @__PURE__ */ jsxRuntime.jsxs("span", { children: [
-          "\u{1F4FA} ",
           participant.displayName,
           "'s screen"
         ] }),
         /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant, stats: { isScreenShare: true, participantId: participant.id } })
       ] })
     ] }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style, children: [
       /* @__PURE__ */ jsxRuntime.jsx(
         "video",
         {
@@ -1361,7 +1419,7 @@ function RemoteParticipantTile({
           ref: videoRef,
           autoPlay: true,
           playsInline: true,
-          style: { display: hasVideo ? void 0 : "none" }
+          style: { display: hasVideo ? void 0 : "none", objectFit }
         }
       ),
       !hasVideo && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__avatar", children: participant.displayName.charAt(0).toUpperCase() }),
@@ -1370,8 +1428,226 @@ function RemoteParticipantTile({
         /* @__PURE__ */ jsxRuntime.jsx("span", { children: participant.displayName }),
         /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant })
       ] }),
-      participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__mute-icon", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedOverlayIcon, {}) })
+      participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__mute-icon", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedOverlayIcon, {}) }),
+      children
     ] })
+  ] });
+}
+function AdminControls({ participantId, className, style, children }) {
+  const { participants, localRole, kickParticipant, muteParticipant, grantModerator } = useJitsiContext();
+  if (localRole !== "moderator") return null;
+  const participant = participants.get(participantId);
+  if (!participant || participant.isLocal) return null;
+  const actions = {
+    kick: () => kickParticipant(participantId),
+    muteAudio: () => muteParticipant(participantId, "audio"),
+    muteVideo: () => muteParticipant(participantId, "video"),
+    grantModerator: () => grantModerator(participantId)
+  };
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participant, actions) });
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-admin-controls ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: "Mute" }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: "No Video" }),
+    participant.role !== "moderator" && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: "Promote" }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: "Kick" })
+  ] });
+}
+function VideoControlsOverlay({
+  participant,
+  videoMode,
+  setVideoMode,
+  isPinned,
+  onTogglePin,
+  objectFit,
+  onToggleFit
+}) {
+  const { localRole } = useJitsiContext();
+  const isModerator = localRole === "moderator";
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-controls", children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-video-overlay-actions", children: [
+    videoMode && setVideoMode && /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: "rj-video-btn",
+        onClick: () => setVideoMode(videoMode === "grid" ? "floating" : "grid"),
+        children: videoMode === "grid" ? /* @__PURE__ */ jsxRuntime.jsx(GridOff, {}) : /* @__PURE__ */ jsxRuntime.jsx(Grid, {})
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: `rj-video-btn ${isPinned ? "rj-video-btn--active" : ""}`,
+        onClick: onTogglePin,
+        title: isPinned ? "Unpin" : "Pin",
+        children: isPinned ? /* @__PURE__ */ jsxRuntime.jsx(PinOff, {}) : /* @__PURE__ */ jsxRuntime.jsx(Pin, {})
+      }
+    ),
+    participant.id !== "whiteboard-view" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+      /* @__PURE__ */ jsxRuntime.jsx(
+        "button",
+        {
+          className: "rj-video-btn",
+          onClick: onToggleFit,
+          title: objectFit === "cover" ? "Show whole video" : "Crop to fill",
+          children: objectFit === "cover" ? /* @__PURE__ */ jsxRuntime.jsx(Fullscreen, {}) : /* @__PURE__ */ jsxRuntime.jsx(FullscreenExit, {})
+        }
+      ),
+      !participant.isLocal && isModerator && /* @__PURE__ */ jsxRuntime.jsxs(reactPopover.Popover, { children: [
+        /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-video-btn", children: /* @__PURE__ */ jsxRuntime.jsx(MoreVertical, {}) }) }),
+        /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-admin", children: /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id }) }) })
+      ] })
+    ] })
+  ] }) });
+}
+function VideoLayout({ className, style, whiteboardComponent }) {
+  const containerRef = React5.useRef(null);
+  const { participants, localParticipantId, remoteTracks, whiteboardActive } = useJitsiContext();
+  const [containerSize, setContainerSize] = React5.useState({ width: 0, height: 0 });
+  const [pinnedIds, setPinnedIds] = React5.useState(/* @__PURE__ */ new Set());
+  const [objectFits, setObjectFits] = React5.useState({});
+  const remoteParticipants = Array.from(participants.values()).filter((p) => !p.isLocal);
+  const hasRemotes = remoteParticipants.length > 0;
+  const [localVideoMode, setLocalVideoMode] = React5.useState(
+    hasRemotes ? "floating" : "grid"
+  );
+  const prevHasRemotesRef = React5.useRef(hasRemotes);
+  React5.useEffect(() => {
+    if (!prevHasRemotesRef.current && hasRemotes) {
+      setLocalVideoMode("floating");
+    }
+    prevHasRemotesRef.current = hasRemotes;
+  }, [hasRemotes]);
+  React5.useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setContainerSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+  const togglePin = (id) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleFit = (id) => {
+    setObjectFits((prev) => ({
+      ...prev,
+      [id]: prev[id] === "contain" ? "cover" : "contain"
+    }));
+  };
+  const localParticipant = localParticipantId ? participants.get(localParticipantId) : void 0;
+  const allParticipants = Array.from(participants.values());
+  const whiteboardId = "whiteboard-view";
+  if (whiteboardActive && whiteboardComponent) {
+    allParticipants.push({
+      id: whiteboardId,
+      displayName: "Whiteboard",
+      isLocal: false,
+      audioMuted: true,
+      videoMuted: false,
+      connectionStatus: "active",
+      role: "none"
+    });
+  }
+  const pinnedParticipantsList = allParticipants.filter((p) => pinnedIds.has(p.id));
+  const hasPinned = pinnedParticipantsList.length > 0;
+  let gridItems = [];
+  let stripItems = [];
+  if (hasPinned) {
+    gridItems = pinnedParticipantsList;
+    stripItems = allParticipants.filter(
+      (p) => !pinnedIds.has(p.id) && (p.isLocal ? localVideoMode === "grid" : true)
+    );
+  } else {
+    gridItems = allParticipants.filter(
+      (p) => p.isLocal ? localVideoMode === "grid" : true
+    );
+  }
+  const gridDimensions = calculateGridSettings(
+    hasPinned ? containerSize.width - 256 : containerSize.width,
+    // leave room for strip if pinned
+    containerSize.height,
+    gridItems.length,
+    16 / 9,
+    16
+    // gap
+  );
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-video-layout ${className || ""}`, style, ref: containerRef, children: [
+    localVideoMode === "floating" && localParticipant && !pinnedIds.has(localParticipant.id) && /* @__PURE__ */ jsxRuntime.jsx(
+      reactRnd.Rnd,
+      {
+        default: {
+          x: containerSize.width - 240 - 16 > 0 ? containerSize.width - 240 - 16 : 16,
+          y: 16,
+          width: 240,
+          height: 180
+        },
+        minWidth: 160,
+        minHeight: 120,
+        bounds: "parent",
+        className: "rj-local-floating",
+        children: /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[localParticipant.id] || "cover", showPlaceholder: true, children: /* @__PURE__ */ jsxRuntime.jsx(
+          VideoControlsOverlay,
+          {
+            participant: localParticipant,
+            videoMode: localVideoMode,
+            setVideoMode: setLocalVideoMode,
+            isPinned: pinnedIds.has(localParticipant.id),
+            onTogglePin: () => togglePin(localParticipant.id),
+            objectFit: objectFits[localParticipant.id] || "cover",
+            onToggleFit: () => toggleFit(localParticipant.id)
+          }
+        ) })
+      }
+    ),
+    hasPinned ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-video-layout__spotlight", children: [
+      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__spotlight-main", children: /* @__PURE__ */ jsxRuntime.jsx("div", { style: {
+        display: "flex",
+        flexWrap: "wrap",
+        justifyContent: "center",
+        alignContent: "center",
+        gap: 16,
+        width: "100%",
+        height: "100%"
+      }, children: gridItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: gridDimensions.width, height: gridDimensions.height }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsxs(LocalVideo, { objectFit: objectFits[p.id] || "contain", children: [
+        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
+        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "contain", onToggleFit: () => toggleFit(p.id) })
+      ] }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
+        whiteboardComponent,
+        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
+        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+        } })
+      ] }) : /* @__PURE__ */ jsxRuntime.jsxs(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "contain", style: { width: "100%", height: "100%" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
+        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "contain", onToggleFit: () => toggleFit(p.id) })
+      ] }) }, p.id)) }) }),
+      stripItems.length > 0 && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__spotlight-strip", children: stripItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "100%", aspectRatio: "16/9" }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
+        whiteboardComponent,
+        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+        } })
+      ] }) : /* @__PURE__ */ jsxRuntime.jsx(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "cover", style: { width: "100%", height: "100%" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) }, p.id)) })
+    ] }) : /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__grid", children: /* @__PURE__ */ jsxRuntime.jsx("div", { style: {
+      display: "flex",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      alignContent: "center",
+      gap: 16,
+      width: "100%",
+      height: "100%"
+    }, children: gridItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: gridDimensions.width, height: gridDimensions.height }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
+      whiteboardComponent,
+      /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+      } })
+    ] }) : /* @__PURE__ */ jsxRuntime.jsx(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "cover", style: { width: "100%", height: "100%" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) }, p.id)) }) })
   ] });
 }
 function mergeProps(childProps, slotProps) {
@@ -1399,13 +1675,13 @@ function mergeProps(childProps, slotProps) {
   return merged;
 }
 function Slot({ children, ...slotProps }) {
-  if (!React4__default.default.isValidElement(children)) {
+  if (!React5__default.default.isValidElement(children)) {
     console.warn("[react-jitsi] Slot requires a valid React element as children when using asChild.");
     return null;
   }
   const childProps = children.props;
   const merged = mergeProps(childProps, slotProps);
-  return React4__default.default.cloneElement(children, merged);
+  return React5__default.default.cloneElement(children, merged);
 }
 function ToggleAudio({ className, style, asChild, children }) {
   const { audioMuted, toggleAudio } = useJitsiContext();
@@ -1414,7 +1690,7 @@ function ToggleAudio({ className, style, asChild, children }) {
   if (typeof children === "function") {
     return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(audioMuted, toggleAudio) });
   }
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(
       Slot,
       {
@@ -1447,7 +1723,7 @@ function ToggleVideo({ className, style, asChild, children }) {
   const dataState = videoMuted ? "muted" : "active";
   const label = videoMuted ? "Turn on camera" : "Turn off camera";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(videoMuted, toggleVideo) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleVideo, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1466,7 +1742,7 @@ function ToggleVideo({ className, style, asChild, children }) {
 }
 function ScreenShareButton({ className, style, frameRate, asChild, children }) {
   const { isScreenSharing, startScreenShare, stopScreenShare } = useJitsiContext();
-  const toggle = React4.useCallback(async () => {
+  const toggle = React5.useCallback(async () => {
     if (isScreenSharing) {
       await stopScreenShare();
     } else {
@@ -1478,7 +1754,7 @@ function ScreenShareButton({ className, style, frameRate, asChild, children }) {
   const dataState = isScreenSharing ? "sharing" : "idle";
   const label = isScreenSharing ? "Stop sharing" : "Share screen";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isScreenSharing, toggle) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1497,13 +1773,13 @@ function ScreenShareButton({ className, style, frameRate, asChild, children }) {
 }
 function LeaveButton({ className, style, label, confirmBeforeLeave = false, confirmMessage = "Are you sure you want to leave the meeting?", onLeave, asChild, children }) {
   const { leave } = useJitsiContext();
-  const handleLeave = React4.useCallback(async () => {
+  const handleLeave = React5.useCallback(async () => {
     if (confirmBeforeLeave && !window.confirm(confirmMessage)) return;
     await leave();
     onLeave?.();
   }, [leave, confirmBeforeLeave, confirmMessage, onLeave]);
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(handleLeave) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: handleLeave, "data-state": "leave", "aria-label": "Leave meeting", title: "Leave meeting", className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsxs(
@@ -1527,31 +1803,22 @@ function ToggleMirror({ className, style, asChild, children }) {
   const dataState = isMirrored ? "mirrored" : "normal";
   const label = isMirrored ? "Disable mirror" : "Enable mirror";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isMirrored, toggleMirror) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleMirror, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "button",
-    {
-      className: `rj-btn ${isMirrored ? "rj-btn--accent" : "rj-btn--active"} ${className || ""}`,
-      style,
-      onClick: toggleMirror,
-      "data-state": dataState,
-      title: label,
-      "aria-label": label,
-      type: "button",
-      children: /* @__PURE__ */ jsxRuntime.jsx(MirrorIcon, {})
-    }
-  );
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: "5px" }, children: [
+    /* @__PURE__ */ jsxRuntime.jsx("input", { id: "rj-toggle-mirror", type: "checkbox", style, "data-state": dataState, title: label, "aria-label": label, checked: isMirrored, onChange: toggleMirror }),
+    /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", htmlFor: "rj-toggle-mirror", children: "Mirror my video" })
+  ] });
 }
 function ToggleChat({ className, style, asChild, children }) {
   const { unreadCount } = useJitsiContext();
-  const [isOpen, setIsOpen] = React4.useState(false);
-  const toggle = React4.useCallback(() => setIsOpen((v) => !v), []);
+  const [isOpen, setIsOpen] = React5.useState(false);
+  const toggle = React5.useCallback(() => setIsOpen((v) => !v), []);
   const dataState = isOpen ? "open" : "closed";
   const label = isOpen ? "Close chat" : "Open chat";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isOpen, toggle, unreadCount) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsxs(
@@ -1583,7 +1850,7 @@ function ToggleRecording({ className, style, mode = "file", recordingOptions, as
     }
   };
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isRecording, toggle) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1605,7 +1872,7 @@ function ToggleCaptions({ className, style, asChild, children }) {
   const dataState = captionsEnabled ? "active" : "off";
   const label = captionsEnabled ? "Disable captions" : "Enable captions";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(captionsEnabled, toggleCaptions) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleCaptions, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -1624,13 +1891,13 @@ function ToggleCaptions({ className, style, asChild, children }) {
 }
 function TogglePolls({ className, style, asChild, children }) {
   const { polls } = useJitsiContext();
-  const [isOpen, setIsOpen] = React4.useState(false);
-  const toggle = React4.useCallback(() => setIsOpen((v) => !v), []);
+  const [isOpen, setIsOpen] = React5.useState(false);
+  const toggle = React5.useCallback(() => setIsOpen((v) => !v), []);
   const activeCount = polls.filter((p) => p.isOpen).length;
   const dataState = isOpen ? "open" : "closed";
   const label = isOpen ? "Close polls" : "Open polls";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isOpen, toggle, polls) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsxs(
@@ -1706,21 +1973,21 @@ function RecordingIndicator({ className, style, children }) {
 }
 function ChatPanel({ className, style, placeholder = "Type a message...", children }) {
   const { messages, sendMessage, unreadCount, markMessagesRead } = useJitsiContext();
-  const [text, setText] = React4.useState("");
-  const messagesEndRef = React4.useRef(null);
-  const handleSend = React4.useCallback(() => {
+  const [text, setText] = React5.useState("");
+  const messagesEndRef = React5.useRef(null);
+  const handleSend = React5.useCallback(() => {
     if (!text.trim()) return;
     sendMessage(text.trim());
     setText("");
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, [text, sendMessage]);
-  const handleKeyDown = React4.useCallback((e) => {
+  const handleKeyDown = React5.useCallback((e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   }, [handleSend]);
-  React4__default.default.useEffect(() => {
+  React5__default.default.useEffect(() => {
     markMessagesRead();
   }, [messages.length, markMessagesRead]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(messages, sendMessage, unreadCount) });
@@ -1753,25 +2020,6 @@ function ChatPanel({ className, style, placeholder = "Type a message...", childr
       ),
       /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-send-btn", onClick: handleSend, type: "button", children: "Send" })
     ] })
-  ] });
-}
-function AdminControls({ participantId, className, style, children }) {
-  const { participants, localRole, kickParticipant, muteParticipant, grantModerator } = useJitsiContext();
-  if (localRole !== "moderator") return null;
-  const participant = participants.get(participantId);
-  if (!participant || participant.isLocal) return null;
-  const actions = {
-    kick: () => kickParticipant(participantId),
-    muteAudio: () => muteParticipant(participantId, "audio"),
-    muteVideo: () => muteParticipant(participantId, "video"),
-    grantModerator: () => grantModerator(participantId)
-  };
-  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participant, actions) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-admin-controls ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: "Mute" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: "No Video" }),
-    participant.role !== "moderator" && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: "Promote" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: "Kick" })
   ] });
 }
 var AVATAR_COLORS = [
@@ -1812,7 +2060,7 @@ function ParticipantList({
   }
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-participant-list ${className || ""}`, style, children: participantsList.map((participant) => {
     if (renderParticipant) {
-      return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
+      return /* @__PURE__ */ jsxRuntime.jsx(React5__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
     }
     return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item", style: { flexWrap: "wrap" }, children: [
       /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", width: "100%" }, children: [
@@ -1854,9 +2102,9 @@ function Captions({ className, style, maxVisible = 3, children }) {
 }
 function PollCreator({ className, style, minOptions = 2, maxOptions = 10, onCreated, children }) {
   const { createPoll } = useJitsiContext();
-  const [question, setQuestion] = React4.useState("");
-  const [options, setOptions] = React4.useState(["", ""]);
-  const handleCreate = React4.useCallback(() => {
+  const [question, setQuestion] = React5.useState("");
+  const [options, setOptions] = React5.useState(["", ""]);
+  const handleCreate = React5.useCallback(() => {
     const validOptions = options.filter((o) => o.trim());
     if (!question.trim() || validOptions.length < minOptions) return;
     createPoll(question.trim(), validOptions);
@@ -1953,9 +2201,9 @@ function DeviceSelector({
   children
 }) {
   const { getDevices, switchCamera, switchMicrophone, localTracks } = useJitsiContext();
-  const [devices, setDevices] = React4.useState([]);
-  const [selectedId, setSelectedId] = React4.useState();
-  React4.useEffect(() => {
+  const [devices, setDevices] = React5.useState([]);
+  const [selectedId, setSelectedId] = React5.useState();
+  React5.useEffect(() => {
     const track = localTracks.find((t) => {
       if (kind === "audioinput") return t.getType() === "audio";
       if (kind === "videoinput") return t.getType() === "video";
@@ -1969,13 +2217,13 @@ function DeviceSelector({
       }
     }
   }, [localTracks, kind]);
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     getDevices().then((allDevices) => {
       const filtered = allDevices.filter((d) => d.kind === kind);
       setDevices(filtered);
     });
   }, [getDevices, kind]);
-  const handleSelect = React4.useCallback(
+  const handleSelect = React5.useCallback(
     async (deviceId) => {
       setSelectedId(deviceId);
       if (kind === "videoinput") {
@@ -2005,12 +2253,12 @@ function DeviceSelector({
 }
 function AudioOutputSelector({ className, style, label, children }) {
   const { getDevices, setAudioOutput } = useJitsiContext();
-  const [devices, setDevices] = React4.useState([]);
-  const [selectedId, setSelectedId] = React4.useState();
-  React4.useEffect(() => {
+  const [devices, setDevices] = React5.useState([]);
+  const [selectedId, setSelectedId] = React5.useState();
+  React5.useEffect(() => {
     getDevices().then((all) => setDevices(all.filter((d) => d.kind === "audiooutput")));
   }, [getDevices]);
-  const handleSelect = React4.useCallback(async (deviceId) => {
+  const handleSelect = React5.useCallback(async (deviceId) => {
     setSelectedId(deviceId);
     await setAudioOutput(deviceId);
   }, [setAudioOutput]);
@@ -2050,10 +2298,32 @@ function PerformanceSettings({ className, style, children }) {
     ] })
   ] });
 }
+function ToggleWhiteboard({ className, style, asChild, children }) {
+  const { whiteboardActive, toggleWhiteboard } = useJitsiContext();
+  const dataState = whiteboardActive ? "active" : "off";
+  const label = whiteboardActive ? "Close whiteboard" : "Open whiteboard";
+  if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, toggleWhiteboard) });
+  if (asChild && React5__default.default.isValidElement(children)) {
+    return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleWhiteboard, "data-state": dataState, "aria-label": label, title: label, className, style, children });
+  }
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    "button",
+    {
+      className: `rj-btn ${whiteboardActive ? "rj-btn--accent" : "rj-btn--active"} ${className || ""}`,
+      style,
+      onClick: toggleWhiteboard,
+      "data-state": dataState,
+      title: label,
+      "aria-label": label,
+      type: "button",
+      children: /* @__PURE__ */ jsxRuntime.jsx(WhiteboardIcon, {})
+    }
+  );
+}
 function ScreenSharePreview() {
   const { localScreenTrack, isScreenSharing } = useJitsiContext();
-  const videoRef = React4.useRef(null);
-  React4.useEffect(() => {
+  const videoRef = React5.useRef(null);
+  React5.useEffect(() => {
     const el = videoRef.current;
     if (!el || !localScreenTrack) return;
     localScreenTrack.attach(el);
@@ -2067,12 +2337,10 @@ function ScreenSharePreview() {
     /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-screen-tile__label", children: "Your screen" })
   ] });
 }
-function MeetingUI({ title, showSidebar = true, showSettings = true }) {
-  const { participants } = useJitsiContext();
-  const hasRemoteParticipants = Array.from(participants.values()).some((p) => !p.isLocal);
-  const [sidebarOpen, setSidebarOpen] = React4.useState(showSidebar);
-  const [activeTab, setActiveTab] = React4.useState("participants");
-  const [showPollCreator, setShowPollCreator] = React4.useState(false);
+function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboardComponent }) {
+  const [sidebarOpen, setSidebarOpen] = React5.useState(showSidebar);
+  const [activeTab, setActiveTab] = React5.useState("participants");
+  const [showPollCreator, setShowPollCreator] = React5.useState(false);
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header", children: [
       /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__title", children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "Jitsi Meeting" }) }),
@@ -2085,14 +2353,9 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }) {
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__video-area", children: [
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__remote-area", children: [
           /* @__PURE__ */ jsxRuntime.jsx(ScreenSharePreview, {}),
-          /* @__PURE__ */ jsxRuntime.jsx(RemoteVideos, { style: { maxHeight: "100%" } }),
-          !hasRemoteParticipants && /* @__PURE__ */ jsxRuntime.jsxs("div", { id: "empty-room", className: "rj-meeting__empty", children: [
-            /* @__PURE__ */ jsxRuntime.jsx(EmptyRoomIcon, {}),
-            /* @__PURE__ */ jsxRuntime.jsx("span", { style: { fontSize: "14px" }, children: "Waiting for others to join..." })
-          ] })
+          /* @__PURE__ */ jsxRuntime.jsx(VideoLayout, { whiteboardComponent })
         ] }),
-        /* @__PURE__ */ jsxRuntime.jsx(Captions, {}),
-        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__local-video", children: /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, {}) })
+        /* @__PURE__ */ jsxRuntime.jsx(Captions, {})
       ] }),
       sidebarOpen && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__sidebar", children: [
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__tab-bar", children: [
@@ -2161,6 +2424,7 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }) {
           activeTab === "settings" && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__settings-group", children: [
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "audioinput", label: "Microphone" }),
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "videoinput", label: "Camera" }),
+            /* @__PURE__ */ jsxRuntime.jsx(ToggleMirror, {}),
             /* @__PURE__ */ jsxRuntime.jsx(AudioOutputSelector, { label: "Speaker" }),
             /* @__PURE__ */ jsxRuntime.jsx("div", { style: { borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px" }, children: /* @__PURE__ */ jsxRuntime.jsx(PerformanceSettings, { style: { padding: 0, backgroundColor: "transparent" } }) })
           ] })
@@ -2168,86 +2432,112 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }) {
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar", children: [
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleAudio, {}),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleVideo, {}),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleMirror, {}),
-      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
-      /* @__PURE__ */ jsxRuntime.jsx(ScreenShareButton, {}),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleRecording, {}),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleCaptions, {}),
-      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleChat, { children: (_isOpen, _toggle, unread) => /* @__PURE__ */ jsxRuntime.jsxs(
-        "button",
-        {
-          type: "button",
-          className: `rj-btn ${sidebarOpen && activeTab === "chat" ? "rj-btn--accent" : "rj-btn--active"}`,
-          style: { position: "relative" },
-          onClick: () => {
-            setSidebarOpen(true);
-            setActiveTab("chat");
-          },
-          children: [
-            /* @__PURE__ */ jsxRuntime.jsx(ChatIcon, {}),
-            unread > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--danger", children: unread > 99 ? "99+" : unread })
-          ]
-        }
-      ) }),
-      /* @__PURE__ */ jsxRuntime.jsx(TogglePolls, { children: (_isOpen, _toggle, polls) => {
-        const active = polls.filter((p) => p.isOpen).length;
-        return /* @__PURE__ */ jsxRuntime.jsxs(
+      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__toolbar-section" }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar-section", style: { justifyContent: "center" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleAudio, {}),
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleVideo, {}),
+        /* @__PURE__ */ jsxRuntime.jsx(ScreenShareButton, {}),
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleRecording, {}),
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleCaptions, {}),
+        /* @__PURE__ */ jsxRuntime.jsxs(reactPopover.Popover, { children: [
+          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx(
+            "button",
+            {
+              type: "button",
+              className: "rj-btn rj-btn--active",
+              title: "More options",
+              children: /* @__PURE__ */ jsxRuntime.jsx(MoreHorizontal, {})
+            }
+          ) }),
+          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx(ToggleWhiteboard, {}) })
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsx(LeaveButton, { label: "Leave" })
+      ] }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar-section", style: { justifyContent: "flex-end" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(
           "button",
           {
             type: "button",
-            className: `rj-btn ${sidebarOpen && activeTab === "polls" ? "rj-btn--accent" : "rj-btn--active"}`,
+            className: `rj-btn ${sidebarOpen && activeTab === "participants" ? "rj-btn--accent" : "rj-btn--active"}`,
+            onClick: () => {
+              setSidebarOpen((s) => activeTab === "participants" ? !s : true);
+              setActiveTab("participants");
+            },
+            title: "Toggle participants",
+            children: /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
+              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+              /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "9", cy: "7", r: "4" }),
+              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
+              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+            ] })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleChat, { children: (_isOpen, _toggle, unread) => /* @__PURE__ */ jsxRuntime.jsxs(
+          "button",
+          {
+            type: "button",
+            className: `rj-btn ${sidebarOpen && activeTab === "chat" ? "rj-btn--accent" : "rj-btn--active"}`,
             style: { position: "relative" },
             onClick: () => {
-              setSidebarOpen(true);
-              setActiveTab("polls");
+              setSidebarOpen((s) => activeTab === "chat" ? !s : true);
+              setActiveTab("chat");
             },
             children: [
-              /* @__PURE__ */ jsxRuntime.jsx(PollIcon, {}),
-              active > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: active })
+              /* @__PURE__ */ jsxRuntime.jsx(ChatIcon, {}),
+              unread > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--danger", children: unread > 99 ? "99+" : unread })
             ]
           }
-        );
-      } }),
-      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
-      /* @__PURE__ */ jsxRuntime.jsx(
-        "button",
-        {
-          type: "button",
-          className: `rj-btn ${sidebarOpen && activeTab === "participants" ? "rj-btn--accent" : "rj-btn--active"}`,
-          onClick: () => {
-            setSidebarOpen((s) => !s);
-            setActiveTab("participants");
-          },
-          title: "Toggle participants",
-          children: /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
-            /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
-            /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "9", cy: "7", r: "4" }),
-            /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
-            /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
-          ] })
-        }
-      ),
-      /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
-      /* @__PURE__ */ jsxRuntime.jsx(LeaveButton, { label: "Leave" })
+        ) }),
+        /* @__PURE__ */ jsxRuntime.jsx(TogglePolls, { children: (_isOpen, _toggle, polls) => {
+          const active = polls.filter((p) => p.isOpen).length;
+          return /* @__PURE__ */ jsxRuntime.jsxs(
+            "button",
+            {
+              type: "button",
+              className: `rj-btn ${sidebarOpen && activeTab === "polls" ? "rj-btn--accent" : "rj-btn--active"}`,
+              style: { position: "relative" },
+              onClick: () => {
+                setSidebarOpen((s) => activeTab === "polls" ? !s : true);
+                setActiveTab("polls");
+              },
+              children: [
+                /* @__PURE__ */ jsxRuntime.jsx(PollIcon, {}),
+                active > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: active })
+              ]
+            }
+          );
+        } }),
+        /* @__PURE__ */ jsxRuntime.jsx(
+          "button",
+          {
+            type: "button",
+            className: `rj-btn ${sidebarOpen && activeTab === "settings" ? "rj-btn--accent" : "rj-btn--active"}`,
+            onClick: () => {
+              setSidebarOpen((s) => activeTab === "settings" ? !s : true);
+              setActiveTab("settings");
+            },
+            title: "Toggle settings",
+            children: /* @__PURE__ */ jsxRuntime.jsx(Settings, {})
+          }
+        )
+      ] })
     ] })
   ] });
 }
 function JitsiMeeting({
   title,
   height = "100vh",
-  showSidebar = true,
+  showSidebar = false,
   showSettings = true,
+  whiteboardComponent,
   ...providerProps
 }) {
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting", style: { height }, children: /* @__PURE__ */ jsxRuntime.jsx(JitsiProvider, { ...providerProps, children: /* @__PURE__ */ jsxRuntime.jsx(MeetingUI, { title, showSidebar, showSettings }) }) });
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting", style: { height }, children: /* @__PURE__ */ jsxRuntime.jsx(JitsiProvider, { ...providerProps, children: /* @__PURE__ */ jsxRuntime.jsx(MeetingUI, { title, showSidebar, showSettings, whiteboardComponent }) }) });
 }
 function AudioTrack() {
   const { remoteTracks } = useJitsiContext();
-  const audioElementsRef = React4.useRef(/* @__PURE__ */ new Map());
-  React4.useEffect(() => {
+  const audioElementsRef = React5.useRef(/* @__PURE__ */ new Map());
+  React5.useEffect(() => {
     const currentElements = audioElementsRef.current;
     const activeTrackIds = /* @__PURE__ */ new Set();
     remoteTracks.forEach((tracks) => {
@@ -2294,7 +2584,7 @@ function VirtualBackground({ className, style, asChild, children }) {
   const toggle = async () => {
     if (isActive) await removeVirtualBackground();
   };
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2316,7 +2606,7 @@ function ToggleNoiseSuppression({ className, style, asChild, children }) {
   const dataState = noiseSuppressionEnabled ? "active" : "off";
   const label = noiseSuppressionEnabled ? "Disable noise suppression" : "Enable noise suppression";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(noiseSuppressionEnabled, setNoiseSuppression) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleNoiseSuppression, "data-state": dataState, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2335,8 +2625,8 @@ function ToggleNoiseSuppression({ className, style, asChild, children }) {
 }
 function ChatInput({ className, style, placeholder = "Type a message...", privateTo, children }) {
   const { sendMessage } = useJitsiContext();
-  const [text, setText] = React4.useState("");
-  const send = React4.useCallback(() => {
+  const [text, setText] = React5.useState("");
+  const send = React5.useCallback(() => {
     if (!text.trim()) return;
     sendMessage(text.trim(), privateTo);
     setText("");
@@ -2365,7 +2655,7 @@ function ChatMessages({ className, style, renderMessage, children }) {
   const { messages } = useJitsiContext();
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(messages) });
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-msg-list ${className || ""}`, style, children: messages.map((msg) => {
-    if (renderMessage) return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderMessage(msg) }, msg.id);
+    if (renderMessage) return /* @__PURE__ */ jsxRuntime.jsx(React5__default.default.Fragment, { children: renderMessage(msg) }, msg.id);
     return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
       /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-msg__sender", children: [
         msg.displayName,
@@ -2377,12 +2667,12 @@ function ChatMessages({ className, style, renderMessage, children }) {
 }
 function Whiteboard({ className, style, onDataReceived, children }) {
   const { whiteboardActive, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
-  React4.useEffect(() => {
+  React5.useEffect(() => {
     if (!onDataReceived) return;
     const unsubscribe = onWhiteboardData(onDataReceived);
     return unsubscribe;
   }, [onDataReceived, onWhiteboardData]);
-  const sendData = React4.useCallback((data) => {
+  const sendData = React5.useCallback((data) => {
     sendWhiteboardData(data);
   }, [sendWhiteboardData]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, sendData, toggleWhiteboard) });
@@ -2392,31 +2682,9 @@ function Whiteboard({ className, style, onDataReceived, children }) {
       /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }),
       /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M3 9h18M9 21V9" })
     ] }),
-    /* @__PURE__ */ jsxRuntime.jsx("span", { style: { color: "#9ca3af" }, children: "Whiteboard active \u2014 Integrate your preferred whiteboard library" }),
+    /* @__PURE__ */ jsxRuntime.jsx("span", { style: { color: "#9ca3af" }, children: "Whiteboard active - Integrate your preferred whiteboard library" }),
     /* @__PURE__ */ jsxRuntime.jsx("span", { style: { fontSize: "12px", color: "#6b7280" }, children: "Use the render prop API for full control" })
   ] });
-}
-function ToggleWhiteboard({ className, style, asChild, children }) {
-  const { whiteboardActive, toggleWhiteboard } = useJitsiContext();
-  const dataState = whiteboardActive ? "active" : "off";
-  const label = whiteboardActive ? "Close whiteboard" : "Open whiteboard";
-  if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, toggleWhiteboard) });
-  if (asChild && React4__default.default.isValidElement(children)) {
-    return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleWhiteboard, "data-state": dataState, "aria-label": label, title: label, className, style, children });
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "button",
-    {
-      className: `rj-btn ${whiteboardActive ? "rj-btn--accent" : "rj-btn--active"} ${className || ""}`,
-      style,
-      onClick: toggleWhiteboard,
-      "data-state": dataState,
-      title: label,
-      "aria-label": label,
-      type: "button",
-      children: /* @__PURE__ */ jsxRuntime.jsx(WhiteboardIcon, {})
-    }
-  );
 }
 function MuteAllButton({ className, style, mediaType = "audio", asChild, children }) {
   const { localRole, muteAll } = useJitsiContext();
@@ -2424,7 +2692,7 @@ function MuteAllButton({ className, style, mediaType = "audio", asChild, childre
   const handleMuteAll = () => muteAll(mediaType);
   const label = mediaType === "audio" ? "Mute all microphones" : "Turn off all cameras";
   if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(handleMuteAll) });
-  if (asChild && React4__default.default.isValidElement(children)) {
+  if (asChild && React5__default.default.isValidElement(children)) {
     return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: handleMuteAll, "aria-label": label, title: label, className, style, children });
   }
   return /* @__PURE__ */ jsxRuntime.jsx(
@@ -2455,6 +2723,10 @@ exports.ConnectionIndicator = ConnectionIndicator;
 exports.ConnectionStatus = ConnectionStatus;
 exports.DeviceSelector = DeviceSelector;
 exports.EmptyRoomIcon = EmptyRoomIcon;
+exports.Fullscreen = Fullscreen;
+exports.FullscreenExit = FullscreenExit;
+exports.Grid = Grid;
+exports.GridOff = GridOff;
 exports.JitsiMeeting = JitsiMeeting;
 exports.JitsiProvider = JitsiProvider;
 exports.LeaveButton = LeaveButton;
@@ -2464,12 +2736,17 @@ exports.MicMutedSmallIcon = MicMutedSmallIcon;
 exports.MicOffIcon = MicOffIcon;
 exports.MicOnIcon = MicOnIcon;
 exports.MirrorIcon = MirrorIcon;
+exports.MoreHorizontal = MoreHorizontal;
+exports.MoreVertical = MoreVertical;
 exports.MuteAllButton = MuteAllButton;
 exports.NoiseIcon = NoiseIcon;
 exports.ParticipantList = ParticipantList;
 exports.ParticipantStatsPanel = ParticipantStatsPanel;
 exports.PerformanceSettings = PerformanceSettings;
 exports.PhoneOffIcon = PhoneOffIcon;
+exports.Pin = Pin;
+exports.PinOff = PinOff;
+exports.PinOverlay = PinOverlay;
 exports.PollCreator = PollCreator;
 exports.PollDisplay = PollDisplay;
 exports.PollIcon = PollIcon;
@@ -2478,6 +2755,7 @@ exports.RecordingIndicator = RecordingIndicator;
 exports.RemoteVideos = RemoteVideos;
 exports.ScreenShareButton = ScreenShareButton;
 exports.ScreenShareIcon = ScreenShareIcon;
+exports.Settings = Settings;
 exports.Slot = Slot;
 exports.StopRecordIcon = StopRecordIcon;
 exports.StopShareIcon = StopShareIcon;
@@ -2490,6 +2768,7 @@ exports.TogglePolls = TogglePolls;
 exports.ToggleRecording = ToggleRecording;
 exports.ToggleVideo = ToggleVideo;
 exports.ToggleWhiteboard = ToggleWhiteboard;
+exports.VideoLayout = VideoLayout;
 exports.VideoMutedSmallIcon = VideoMutedSmallIcon;
 exports.VideoOffIcon = VideoOffIcon;
 exports.VideoOnIcon = VideoOnIcon;

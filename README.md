@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 Build custom video conferencing interfaces with composable React components.  
-Every component is independent, stylable, and supports the **`asChild`** pattern.
+Every component is independent, stylable, and supports the **`asChild`** or Render Prop pattern.
 
 ---
 
@@ -232,6 +232,7 @@ For more complex components that do not support `asChild` (such as lists, panels
 | `<LocalVideo>` | Local camera video with mirror support and avatar placeholder |
 | `<RemoteVideos>` | Grid of remote participant videos with render props |
 | `<AudioTrack>` | Invisible component managing remote audio playback |
+| `<VideoLayout>` | Component to manage Remote and Local video layout |
 
 ### Control Components
 
@@ -432,26 +433,38 @@ const {
 
 ### Whiteboard Integration (e.g., Excalidraw)
 
+Create a wrapper to integrate the Excalidraw with the Whiteboard component, then pass that wrapper component to the `<JitsiMeeting>` or `<VideoLayout>` using the `whiteboardComponent` property, or render it anywhere in your UI.
+
 ```tsx
-<Whiteboard onDataReceived={(data) => excalidrawAPI.updateScene(data.payload)}>
-  {(isActive, sendData, toggle) => (
-    <>
-      <button onClick={toggle}>
-        {isActive ? 'Close' : 'Open'} Whiteboard
-      </button>
-      {isActive && (
-        <Excalidraw
-          onChange={(elements) => sendData({
-            type: 'scene-update',
-            payload: elements,
-            senderId: '',
-            timestamp: Date.now(),
-          })}
-        />
-      )}
-    </>
-  )}
-</Whiteboard>
+function ExcalidrawWrapper() {
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI>();
+  const isRemoteUpdate = useRef(false);
+
+  return (
+    <Whiteboard onDataReceived={(data) => {
+      isRemoteUpdate.current = true;
+      excalidrawAPI?.updateScene({ elements: data.payload as any });
+    }}>
+      {(isActive, sendData, toggle) => {
+        if (!isActive) return null;
+        return (
+          <Excalidraw
+            excalidrawAPI={(api) => setExcalidrawAPI(api)}
+            onChange={(elements) => {
+              // Send your new drawings to the Jitsi room.
+              if (isRemoteUpdate.current) {
+                isRemoteUpdate.current = false;
+                return;
+              }
+
+              sendData({ type: 'update', payload: elements });
+            }}
+          />
+        );
+      }}
+    </Whiteboard>
+  );
+}
 ```
 
 ---
@@ -488,7 +501,7 @@ JitsiProvider (Context + State Management)
   └── Event Listeners - Track, participant, chat, recording events
 
 Components (Consumer Layer)
-  ├── Media - LocalVideo, RemoteVideos, AudioTrack
+  ├── Media - LocalVideo, RemoteVideos, AudioTrack, VideoLayout, VideoControlsOverlay
   ├── Controls - Toggle, LeaveButton, DeviceSelector, ScreenShare
   ├── Chat - ChatPanel, ChatInput, ChatMessages
   ├── Status - ConnectionStatus, ConnectionIndicator, ParticipantStatsPanel, ParticipantList, RecordingIndicator

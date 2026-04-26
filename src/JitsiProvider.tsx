@@ -382,7 +382,7 @@ export function JitsiProvider({
 
     // Build connection options with sensible defaults, allowing full override
     // For multi-tenant (JaaS), MUC domain includes tenant: conference.{tenant}.{domain}
-    // NOTE: JaaS (8x8.vc) always requires a JWT token — even for guest access.
+    // NOTE: JaaS (8x8.vc) always requires a JWT token - even for guest access.
     // The "allow anonymous guests" setting in JaaS only works with the IFrame API.
     const t = tenantRef.current;
     const mucDomain = t ? `conference.${t}.${domain}` : `conference.${domain}`;
@@ -474,7 +474,7 @@ export function JitsiProvider({
 
       conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track: JitsiTrack) => {
         if (isLeavingRef.current) return;
-        // Never add local tracks to remoteTracks — this would cause echo
+        // Never add local tracks to remoteTracks - this would cause echo
         if (track.isLocal()) return;
         const pid = track.getParticipantId();
         // Double-check: skip if participant ID matches our own
@@ -535,7 +535,7 @@ export function JitsiProvider({
 
       conference.on(JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED, (track: JitsiTrack) => {
         if (track.isLocal()) {
-          // Ignore screen share track mute events — they should not affect camera state
+          // Ignore screen share track mute events - they should not affect camera state
           if (screenTrackRef.current && track.getId?.() === screenTrackRef.current.getId?.()) return;
           safeDispatch({ type: track.getType() === 'audio' ? 'SET_AUDIO_MUTED' : 'SET_VIDEO_MUTED', muted: track.isMuted() });
         } else {
@@ -675,9 +675,9 @@ export function JitsiProvider({
         safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { stats: parsedRemoteStats } });
       });
 
-      // Chat — filter out own messages (sendMessage already adds them locally)
+      // Chat - filter out own messages (sendMessage already adds them locally)
       conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id: string, text: string, ts: number) => {
-        if (id === conference.myUserId()) return; // Skip own messages — already added by sendMessage
+        if (id === conference.myUserId()) return; // Skip own messages - already added by sendMessage
         const p = conference.getParticipantById(id);
         const msg: ChatMessage = {
           id: nextMsgId(), participantId: id, displayName: p?.getDisplayName() || id,
@@ -723,14 +723,16 @@ export function JitsiProvider({
           };
           safeDispatch({ type: 'ADD_CAPTION', caption });
         }
+
         // Whiteboard data
         if (payload.type === 'whiteboard-data') {
-          const wd = (payload as unknown as { data: WhiteboardData }).data;
+          const wd = (payload as { data: WhiteboardData }).data;
+          if (wd.senderId === conference.myUserId()) return;
           whiteboardHandlersRef.current.forEach((h) => h(wd));
         }
         // Poll data
         if (payload.type === 'poll-data') {
-          const pd = payload as unknown as { action: string; poll: Poll };
+          const pd = payload as { action: string; poll: Poll };
           if (pd.action === 'create') {
             safeDispatch({ type: 'ADD_POLL', poll: pd.poll });
             safeDispatch({ type: 'SET_ACTIVE_POLL', poll: pd.poll });
@@ -743,7 +745,7 @@ export function JitsiProvider({
         }
       });
 
-      // Join the conference first — Jicofo needs the MUC presence before
+      // Join the conference first - Jicofo needs the MUC presence before
       // it allocates a Jitsi Videobridge. Tracks are added after.
       conference.join();
 
@@ -993,7 +995,12 @@ export function JitsiProvider({
 
   const sendWhiteboardData = useCallback((data: WhiteboardData) => {
     if (!conferenceRef.current) return;
-    conferenceRef.current.broadcastEndpointMessage({ type: 'whiteboard-data', data } as unknown as object);
+    const fullData: WhiteboardData = {
+      ...data,
+      senderId: conferenceRef.current.myUserId(),
+      timestamp: Date.now(),
+    };
+    conferenceRef.current.broadcastEndpointMessage({ type: 'whiteboard-data', data: fullData } as unknown as object);
   }, []);
 
   const onWhiteboardData = useCallback((handler: (data: WhiteboardData) => void) => {

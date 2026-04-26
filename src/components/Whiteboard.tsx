@@ -21,22 +21,36 @@ export interface WhiteboardProps {
 }
 
 /**
- * Whiteboard component — provides the data synchronization layer via Jitsi data channels.
+ * Whiteboard component - provides the data synchronization layer via Jitsi data channels.
  *
  * This is an interface/hook only. Integrate with your preferred whiteboard library
  * (Excalidraw, tldraw, etc.) using the `sendData` and `onDataReceived` APIs.
  *
  * @example
  * ```tsx
- * <Whiteboard onDataReceived={(data) => excalidrawAPI.updateScene(data.payload)}>
- *   {(isActive, sendData, toggle) => (
- *     <div>
- *       <button onClick={toggle}>{isActive ? 'Close' : 'Open'} Whiteboard</button>
- *       {isActive && <MyExcalidrawWrapper onChange={(scene) => sendData({
- *         type: 'scene', payload: scene, senderId: '', timestamp: Date.now()
- *       })} />}
- *     </div>
- *   )}
+ * <Whiteboard onDataReceived={(data) => {
+ *     // Inform Excalidraw that the updateScene is from remote data, so the data will not be sent back.
+ *     isRemoteUpdate.current = true;
+ * 
+ *     excalidrawAPI?.updateScene({ elements: data.payload as any });
+ *   }}>
+ *   {(isActive, sendData, toggle) => {
+ *     if (!isActive) return null;
+ *     return (
+ *       <Excalidraw 
+ *         onChange={(elements) => {
+ *           // If the change was made remotely, we don't want to send it back.
+ *           // This prevent Synchronization Feedback Loop.
+ *           if (isRemoteUpdate.current) {
+ *             isRemoteUpdate.current = false;
+ *             return;
+ *           }
+ *           // Send your local drawings to the Jitsi room.
+ *           sendData({ type: 'update', payload: elements });
+ *         }}
+ *       />
+ *     );
+ *   }}
  * </Whiteboard>
  * ```
  */
@@ -64,7 +78,7 @@ export function Whiteboard({ className, style, onDataReceived, children }: White
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M3 9h18M9 21V9" />
       </svg>
-      <span style={{ color: '#9ca3af' }}>Whiteboard active — Integrate your preferred whiteboard library</span>
+      <span style={{ color: '#9ca3af' }}>Whiteboard active - Integrate your preferred whiteboard library</span>
       <span style={{ fontSize: '12px', color: '#6b7280' }}>Use the render prop API for full control</span>
     </div>
   );

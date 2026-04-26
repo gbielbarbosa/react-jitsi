@@ -9,6 +9,8 @@ export interface LocalVideoProps {
   mirror?: boolean;
   muted?: boolean;
   showPlaceholder?: boolean;
+  objectFit?: 'cover' | 'contain';
+  children?: React.ReactNode;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface LocalVideoProps {
  * The `<video>` element is always rendered (never unmounted) to keep the track attached.
  * When the video is muted, it's hidden and a placeholder avatar is shown on top.
  */
-export function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = true }: LocalVideoProps) {
+export function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = true, objectFit = 'cover', children }: LocalVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { localTracks, videoMuted, participants, localParticipantId, isMirrored } = useJitsiContext();
 
@@ -29,7 +31,7 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
     (t) => t.getType() === 'video' && t.getVideoType?.() !== 'desktop'
   );
 
-  // Attach track to video element — the <video> is never unmounted so this runs once
+  // Attach track to video element - the <video> is never unmounted so this runs once
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !videoTrack) return;
@@ -43,6 +45,7 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
     transform: shouldMirror ? 'scaleX(-1)' : undefined,
     // Hide but keep mounted when muted
     display: isHidden ? 'none' : undefined,
+    objectFit,
   };
 
   const localParticipant = localParticipantId ? participants.get(localParticipantId) : null;
@@ -50,7 +53,14 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
 
   return (
     <div className={`rj-local-video ${className || ''}`} style={style}>
-      {/* Always-mounted video element — track stays attached across mute/unmute */}
+      {localParticipant &&
+        <div className="rj-remote-tile__name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>You</span>
+          <ConnectionIndicator participant={localParticipant} />
+        </div>
+      }
+
+      {/* Always-mounted video element - track stays attached across mute/unmute */}
       <video className="rj-local-video__video" ref={videoRef} autoPlay playsInline muted={muted} style={videoStyle} />
 
       {/* Placeholder shown on top when video is muted */}
@@ -60,12 +70,7 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
         </div>
       )}
 
-      {/* Connection Indicator Overlay */}
-      {localParticipant && (
-        <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 10, padding: '4px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '4px' }}>
-          <ConnectionIndicator participant={localParticipant} />
-        </div>
-      )}
+      {children}
     </div>
   );
 }

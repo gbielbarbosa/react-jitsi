@@ -5,11 +5,34 @@ All notable changes to `stdnum-php` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), 
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-26
+
+### ADDED
+
+- New `<VideoLayout>` component to manage Remote and Local video layout
+- `calculateGridSettings` calculates the optimal grid layout
+- Allow multiple video pinning
+- Cut or show the original video resolution
+- Whiteboard tile on `<VideoLayout>`
+
+### MODIFIED
+
+- `<JitsiMeeting>` sidebar is now closed by default
+- `<ToggleMirror>` is no longer a button by default, it's now a checkbox
+- `<JitsiMeeting>` and `<VideoLayout>` now have the `whiteboardComponent` property for implementation Whiteboard in the layout
+- `<Whiteboard>` example improvements
+- Improvements to the standard design
+
+### FIXED
+
+- Chat and poll buttons not closing the sidebar on <JitshMeeting>
+- Fixed issues with Whiteboard synchronization
+
 ## [0.2.0] - 2026-04-25
 
 ### ADDED
 
-- The `stats` property has been added to the `Participant` object, containing some connection statistics.
+- The `stats` property has been added to the `Participant` object, containing some connection statistics
 - <ConnectionIndicator> Participant connection status indicator
 - <ParticipantStatsPanel> Participant connection statistics panel
 

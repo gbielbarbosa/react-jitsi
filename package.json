@@ -1,6 +1,6 @@
 {
   "name": "@gbielbarbosa/react-jitsi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A composable React SDK for Jitsi Meet low-level API with full UI customization",
   "license": "MIT",
   "author": "Gabriel Barbosa",
@@ -30,7 +30,9 @@
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@radix-ui/react-hover-card": "^1.1.2"
+    "@radix-ui/react-hover-card": "^1.1.2",
+    "@radix-ui/react-popover": "^1.1.15",
+    "react-rnd": "^10.5.2"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

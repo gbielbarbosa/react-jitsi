@@ -24,9 +24,9 @@ export function ToggleMirror({ className, style, asChild, children }: ToggleMirr
   }
 
   return (
-    <button className={`rj-btn ${isMirrored ? 'rj-btn--accent' : 'rj-btn--active'} ${className || ''}`}
-      style={style} onClick={toggleMirror} data-state={dataState} title={label} aria-label={label} type="button">
-      <MirrorIcon />
-    </button>
+    <div style={{ display: "flex", gap: "5px" }}>
+      <input id='rj-toggle-mirror' type="checkbox" style={style} data-state={dataState} title={label} aria-label={label} checked={isMirrored} onChange={(toggleMirror)} />
+      <label className='rj-label' htmlFor="rj-toggle-mirror">Mirror my video</label>
+    </div>
   );
 }

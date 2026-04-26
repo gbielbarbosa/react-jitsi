@@ -1,5 +1,5 @@
 /**
- * react-jitsi — Centralized styles
+ * react-jitsi - Centralized styles
  * 
  * All styles use the `rj-` prefix (react-jitsi) to avoid conflicts.
  * Component inline styles have been extracted here for maintainability.
@@ -342,6 +342,7 @@
   font-size: 12px;
   font-weight: 500;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  z-index: 1;
 }
 
 .rj-remote-tile__mute-icon {
@@ -351,6 +352,18 @@
   padding: 4px;
   border-radius: 50%;
   background-color: rgba(239, 68, 68, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rj-remote-tile__pin-icon {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 4px;
+  border-radius: 50%;
+  background-color: var(--rj-green-950);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -873,6 +886,13 @@
   backdrop-filter: blur(8px);
 }
 
+.rj-meeting__toolbar-section {
+  display: flex;
+  align-items: center;
+  flex: 1 1 120%;
+  gap: 8px;
+}
+
 .rj-meeting__sidebar {
   width: 320px;
   border-left: 1px solid rgba(255, 255, 255, 0.06);
@@ -981,4 +1001,163 @@
 .rj-stats-panel__value {
   font-weight: 500;
   color: #e2e8f0;
+}
+
+/* ============================== */
+/* Video Layout & Grid            */
+/* ============================== */
+
+.rj-video-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rj-video-layout__spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.rj-video-layout__spotlight-main {
+  flex: 1;
+  position: relative;
+}
+
+.rj-video-layout__spotlight-strip {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.rj-video-layout__grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Overlay Controls */
+.rj-video-overlay-controls {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.rj-remote-tile:hover .rj-video-overlay-controls,
+.rj-local-video:hover .rj-video-overlay-controls {
+  opacity: 1;
+}
+
+.rj-video-overlay-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+}
+
+.rj-video-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.rj-video-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.rj-video-btn--active {
+  background: var(--rj-green-950);
+}
+
+.rj-video-btn--active:hover {
+  background: color-mix(in oklab, var(--rj-green-950) 40%, transparent);
+}
+
+.rj-local-tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: var(--rj-card);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.rj-local-tile__video {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  transition: object-fit 0.3s;
+}
+
+.rj-local-tile__label {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Floating Local Video Wrapper */
+.rj-local-floating {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 50;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rj-video-overlay-admin {
+  background-color: var(--rj-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: #e0e0e0;
+  font-size: 12px;
+  margin-top: 8px;
+  min-width: 200px;
+}
+
+.rj-video-overlay-admin .rj-admin-controls {
+  flex-direction: column;
 }

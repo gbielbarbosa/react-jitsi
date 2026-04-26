@@ -76,16 +76,22 @@ export function RemoteVideos({
 // Internal: single participant tile
 // ---------------------------------------------------------------------------
 
-interface RemoteParticipantTileProps {
+export interface RemoteParticipantTileProps {
   participant: Participant;
   tracks: JitsiRemoteTrack[];
   renderParticipant?: RemoteVideosProps['renderParticipant'];
+  objectFit?: 'cover' | 'contain';
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
-function RemoteParticipantTile({
+export function RemoteParticipantTile({
   participant,
   tracks,
   renderParticipant,
+  objectFit = 'cover',
+  children,
+  style
 }: RemoteParticipantTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const screenRef = useRef<HTMLVideoElement | null>(null);
@@ -134,20 +140,20 @@ function RemoteParticipantTile({
         <div className="rj-remote-tile">
           <video className="rj-remote-tile__video" ref={screenRef} autoPlay playsInline />
           <div className="rj-remote-tile__name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>📺 {participant.displayName}'s screen</span>
+            <span>{participant.displayName}'s screen</span>
             <ConnectionIndicator participant={participant} stats={{ isScreenShare: true, participantId: participant.id }} />
           </div>
         </div>
       )}
 
       {/* Camera tile */}
-      <div className="rj-remote-tile">
+      <div className="rj-remote-tile" style={style}>
         <video
           className="rj-remote-tile__video"
           ref={videoRef}
           autoPlay
           playsInline
-          style={{ display: hasVideo ? undefined : 'none' }}
+          style={{ display: hasVideo ? undefined : 'none', objectFit }}
         />
         {!hasVideo && (
           <div className="rj-remote-tile__avatar">
@@ -164,6 +170,7 @@ function RemoteParticipantTile({
             <MicMutedOverlayIcon />
           </div>
         )}
+        {children}
       </div>
     </>
   );

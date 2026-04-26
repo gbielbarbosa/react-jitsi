@@ -224,8 +224,8 @@ interface VirtualBackgroundConfig {
 interface WhiteboardData {
     type: string;
     payload: unknown;
-    senderId: string;
-    timestamp: number;
+    senderId?: string;
+    timestamp?: number;
 }
 interface ScreenShareOptions {
     /** Max frame rate for screen share (default: 30) */
@@ -399,6 +399,8 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
     showSidebar?: boolean;
     /** Show settings button (default: true) */
     showSettings?: boolean;
+    /** Component to render inside the grid when the whiteboard is active */
+    whiteboardComponent?: React.ReactNode;
 }
 /**
  * A pre-built, fully-featured meeting UI that uses all SDK components.
@@ -421,7 +423,7 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
  * }
  * ```
  */
-declare function JitsiMeeting({ title, height, showSidebar, showSettings, ...providerProps }: JitsiMeetingProps): react_jsx_runtime.JSX.Element;
+declare function JitsiMeeting({ title, height, showSidebar, showSettings, whiteboardComponent, ...providerProps }: JitsiMeetingProps): react_jsx_runtime.JSX.Element;
 
 interface SlotProps extends React$1.HTMLAttributes<HTMLElement> {
     children: React$1.ReactElement;
@@ -452,6 +454,8 @@ interface LocalVideoProps {
     mirror?: boolean;
     muted?: boolean;
     showPlaceholder?: boolean;
+    objectFit?: 'cover' | 'contain';
+    children?: React$1.ReactNode;
 }
 /**
  * Renders the local video track.
@@ -460,7 +464,7 @@ interface LocalVideoProps {
  * The `<video>` element is always rendered (never unmounted) to keep the track attached.
  * When the video is muted, it's hidden and a placeholder avatar is shown on top.
  */
-declare function LocalVideo({ className, style, mirror, muted, showPlaceholder }: LocalVideoProps): react_jsx_runtime.JSX.Element;
+declare function LocalVideo({ className, style, mirror, muted, showPlaceholder, objectFit, children }: LocalVideoProps): react_jsx_runtime.JSX.Element;
 
 interface RemoteVideosProps {
     /** CSS class name for the container */
@@ -494,6 +498,14 @@ interface RemoteVideosProps {
  * ```
  */
 declare function RemoteVideos({ className, style, renderParticipant, }: RemoteVideosProps): react_jsx_runtime.JSX.Element | null;
+
+interface VideoLayoutProps {
+    className?: string;
+    style?: React$1.CSSProperties;
+    /** Component to render inside the grid when the whiteboard is active */
+    whiteboardComponent?: React$1.ReactNode;
+}
+declare function VideoLayout({ className, style, whiteboardComponent }: VideoLayoutProps): react_jsx_runtime.JSX.Element;
 
 /**
  * Invisible component that manages audio playback for all remote participants.
@@ -779,22 +791,36 @@ interface WhiteboardProps {
     children?: (isActive: boolean, sendData: (data: WhiteboardData) => void, toggle: () => void) => React$1.ReactNode;
 }
 /**
- * Whiteboard component — provides the data synchronization layer via Jitsi data channels.
+ * Whiteboard component - provides the data synchronization layer via Jitsi data channels.
  *
  * This is an interface/hook only. Integrate with your preferred whiteboard library
  * (Excalidraw, tldraw, etc.) using the `sendData` and `onDataReceived` APIs.
  *
  * @example
  * ```tsx
- * <Whiteboard onDataReceived={(data) => excalidrawAPI.updateScene(data.payload)}>
- *   {(isActive, sendData, toggle) => (
- *     <div>
- *       <button onClick={toggle}>{isActive ? 'Close' : 'Open'} Whiteboard</button>
- *       {isActive && <MyExcalidrawWrapper onChange={(scene) => sendData({
- *         type: 'scene', payload: scene, senderId: '', timestamp: Date.now()
- *       })} />}
- *     </div>
- *   )}
+ * <Whiteboard onDataReceived={(data) => {
+ *     // Inform Excalidraw that the updateScene is from remote data, so the data will not be sent back.
+ *     isRemoteUpdate.current = true;
+ *
+ *     excalidrawAPI?.updateScene({ elements: data.payload as any });
+ *   }}>
+ *   {(isActive, sendData, toggle) => {
+ *     if (!isActive) return null;
+ *     return (
+ *       <Excalidraw
+ *         onChange={(elements) => {
+ *           // If the change was made remotely, we don't want to send it back.
+ *           // This prevent Synchronization Feedback Loop.
+ *           if (isRemoteUpdate.current) {
+ *             isRemoteUpdate.current = false;
+ *             return;
+ *           }
+ *           // Send your local drawings to the Jitsi room.
+ *           sendData({ type: 'update', payload: elements });
+ *         }}
+ *       />
+ *     );
+ *   }}
  * </Whiteboard>
  * ```
  */
@@ -996,5 +1022,15 @@ declare const NoiseIcon: () => react_jsx_runtime.JSX.Element;
 declare const WhiteboardIcon: () => react_jsx_runtime.JSX.Element;
 declare const BackgroundIcon: () => react_jsx_runtime.JSX.Element;
 declare const EmptyRoomIcon: () => react_jsx_runtime.JSX.Element;
+declare const Pin: () => react_jsx_runtime.JSX.Element;
+declare const PinOverlay: () => react_jsx_runtime.JSX.Element;
+declare const PinOff: () => react_jsx_runtime.JSX.Element;
+declare const Grid: () => react_jsx_runtime.JSX.Element;
+declare const GridOff: () => react_jsx_runtime.JSX.Element;
+declare const Fullscreen: () => react_jsx_runtime.JSX.Element;
+declare const FullscreenExit: () => react_jsx_runtime.JSX.Element;
+declare const MoreHorizontal: () => react_jsx_runtime.JSX.Element;
+declare const MoreVertical: () => react_jsx_runtime.JSX.Element;
+declare const Settings: () => react_jsx_runtime.JSX.Element;
 
-export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
+export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
