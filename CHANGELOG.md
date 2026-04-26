@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty room label shown even with participants present
 
 
-## [0.1.1] - 2026-04-23
+## [0.1.1] - 2026-04-18
 
 ### ADDED
 
