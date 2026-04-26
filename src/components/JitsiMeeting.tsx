@@ -58,7 +58,7 @@ function ScreenSharePreview() {
   return (
     <div className="rj-screen-tile">
       <video className="rj-screen-tile__video" ref={videoRef} autoPlay playsInline muted />
-      <div className="rj-screen-tile__label">📺 Your screen</div>
+      <div className="rj-screen-tile__label">Your screen</div>
     </div>
   );
 }
@@ -70,6 +70,9 @@ function ScreenSharePreview() {
 function MeetingUI({ title, showSidebar = true, showSettings = true }: {
   title?: string; showSidebar?: boolean; showSettings?: boolean;
 }) {
+  const { participants } = useJitsiContext();
+  const hasRemoteParticipants = Array.from(participants.values()).some((p) => !p.isLocal);
+
   const [sidebarOpen, setSidebarOpen] = useState(showSidebar);
   const [activeTab, setActiveTab] = useState<SidebarTab>('participants');
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -79,7 +82,6 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
       {/* Header */}
       <div className="rj-meeting__header">
         <div className="rj-meeting__title">
-          <div className="rj-meeting__logo">J</div>
           <span>{title || 'Jitsi Meeting'}</span>
         </div>
         <div className="rj-meeting__header-actions">
@@ -95,10 +97,12 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
           <div className="rj-meeting__remote-area">
             <ScreenSharePreview />
             <RemoteVideos style={{ maxHeight: '100%' }} />
-            <div id="empty-room" className="rj-meeting__empty">
-              <EmptyRoomIcon />
-              <span style={{ fontSize: '14px' }}>Waiting for others to join...</span>
-            </div>
+            {!hasRemoteParticipants && (
+              <div id="empty-room" className="rj-meeting__empty">
+                <EmptyRoomIcon />
+                <span style={{ fontSize: '14px' }}>Waiting for others to join...</span>
+              </div>
+            )}
           </div>
 
           <Captions />
@@ -132,7 +136,7 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
                     <button type="button"
                       style={{
                         padding: '8px 16px', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.2)',
-                        backgroundColor: 'transparent', color: '#a5b4fc', cursor: 'pointer', fontSize: '13px',
+                        backgroundColor: 'transparent', color: '#ffffff', cursor: 'pointer', fontSize: '13px',
                         fontFamily: "'Inter', sans-serif"
                       }}
                       onClick={() => setShowPollCreator(true)}>
@@ -227,11 +231,12 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }: {
  * @example
  * ```tsx
  * import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
+ * import "@gbielbarbosa/react-jitsi/styles.css";
  *
  * function App() {
  *   return (
  *     <JitsiMeeting
- *       domain="meet.jit.si"
+ *       domain="8x8.vc"
  *       roomName="my-test-room"
  *       userInfo={{ displayName: 'Test User' }}
  *       title="Team Standup"

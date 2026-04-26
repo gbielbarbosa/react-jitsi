@@ -19,8 +19,6 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 - **`asChild` Pattern** - Transfer behavior to your own elements (Radix UI-inspired)
 - **`useJitsi()` Hook** - Full access to state & actions for headless implementations
 - **Pre-built UI** - `<JitsiMeeting>` component for instant, zero-config meetings
-- **TypeScript** - Full type definitions with generics and JSDoc
-- **Dual Output** - CJS + ESM + `.d.ts` declarations
 
 ---
 
@@ -30,7 +28,7 @@ Every component is independent, stylable, and supports the **`asChild`** pattern
 npm install @gbielbarbosa/react-jitsi
 ```
 
-If you want to use the default UI styles, import the CSS file in your app's entry point (`App.tsx` or `index.tsx`):
+If you want to use the default UI styles, import the CSS file in your app's entry point:
 
 ```tsx
 import '@gbielbarbosa/react-jitsi/styles.css';
@@ -44,7 +42,7 @@ Add the lib-jitsi-meet script to your HTML:
 <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>
 ```
 
-> **Peer dependencies:** `react` ≥ 18, `react-dom` ≥ 18
+> **Peer dependencies:** `react` => 18, `react-dom` => 18
 
 ---
 
@@ -298,6 +296,8 @@ For more complex components that do not support `asChild` (such as lists, panels
 |---|---|---|
 | `<PerformanceSettings>` | Render Prop | Video quality and lastN controls |
 | `<ConnectionStatus>` | Render Prop | Connection status indicator with dot |
+| `<ConnectionIndicator>` | Render Prop | Signal bars indicator (active, inactive, interrupted) |
+| `<ParticipantStatsPanel>` | Render Prop | Detailed network, resolution and framerate statistics panel |
 | `<ParticipantList>` | Render Prop | Full participant list with avatars and status |
 | `<AdminControls>` | Render Prop | Moderator controls for a participant (kick, mute, promote) |
 | `<MuteAllButton>` | `asChild`, Render Prop | Mute all participants (moderator only) |
@@ -491,7 +491,7 @@ Components (Consumer Layer)
   ├── Media - LocalVideo, RemoteVideos, AudioTrack
   ├── Controls - Toggle, LeaveButton, DeviceSelector, ScreenShare
   ├── Chat - ChatPanel, ChatInput, ChatMessages
-  ├── Status - ConnectionStatus, ParticipantList, RecordingIndicator
+  ├── Status - ConnectionStatus, ConnectionIndicator, ParticipantStatsPanel, ParticipantList, RecordingIndicator
   ├── Collaboration - Whiteboard, PollCreator, PollDisplay, Captions
   └── Admin - AdminControls, MuteAllButton
 ```

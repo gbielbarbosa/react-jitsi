@@ -2,10 +2,30 @@
 
 var React4 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
+var HoverCard = require('@radix-ui/react-hover-card');
 
-function _interopDefault(e) { return e && e.__esModule ? e : { default: e }; }
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+function _interopNamespace(e) {
+  if (e && e.__esModule) return e;
+  var n = Object.create(null);
+  if (e) {
+    Object.keys(e).forEach(function (k) {
+      if (k !== 'default') {
+        var d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: function () { return e[k]; }
+        });
+      }
+    });
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
 
 var React4__default = /*#__PURE__*/_interopDefault(React4);
+var HoverCard__namespace = /*#__PURE__*/_interopNamespace(HoverCard);
 
 // src/JitsiProvider.tsx
 var JitsiContext = React4.createContext(null);
@@ -23,11 +43,11 @@ function getJitsiMeetJS() {
   if (!g || !g["JitsiMeetJS"]) {
     if (g && g["JitsiMeetExternalAPI"]) {
       throw new Error(
-        '[react-jitsi] Found JitsiMeetExternalAPI (IFrame API), but this SDK requires lib-jitsi-meet.\nPlease replace the external_api.js script with lib-jitsi-meet:\n\n  For JaaS (8x8.vc):\n  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n  For meet.jit.si:\n  <script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>'
+        '[react-jitsi] Found JitsiMeetExternalAPI (IFrame API), but this SDK requires lib-jitsi-meet.\nPlease replace the external_api.js script with lib-jitsi-meet:\n\n  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n'
       );
     }
     throw new Error(
-      '[react-jitsi] JitsiMeetJS is not available. Please load lib-jitsi-meet via a <script> tag before using <JitsiProvider>.\n\n  For JaaS (8x8.vc):\n  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n  For meet.jit.si:\n  <script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>'
+      '[react-jitsi] JitsiMeetJS is not available. Please load lib-jitsi-meet via a <script> tag before using <JitsiProvider>.\n\n  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n'
     );
   }
   return g["JitsiMeetJS"];
@@ -105,7 +125,16 @@ function jitsiReducer(state, action) {
     case "UPDATE_PARTICIPANT": {
       const m = new Map(state.participants);
       const p = m.get(action.participantId);
-      if (p) m.set(action.participantId, { ...p, ...action.changes });
+      if (p) {
+        const changes = { ...action.changes };
+        if (changes.stats && p.stats) {
+          const cleanNewStats = Object.fromEntries(
+            Object.entries(changes.stats).filter(([_, v]) => v !== void 0)
+          );
+          changes.stats = { ...p.stats, ...cleanNewStats };
+        }
+        m.set(action.participantId, { ...p, ...changes });
+      }
       return { ...state, participants: m };
     }
     case "SET_LOCAL_PARTICIPANT_ID":
@@ -440,6 +469,91 @@ function JitsiProvider({
         if (id === myId) {
           safeDispatch({ type: "SET_LOCAL_ROLE", role: role === "moderator" ? "moderator" : "participant" });
         }
+      });
+      conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id, status) => {
+        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { connectionStatus: status } });
+      });
+      const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || "cq.local_stats_updated";
+      const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || "cq.remote_stats_updated";
+      conference.on(localStatsEvent, (stats) => {
+        if (!stats || !isMountedRef.current) return;
+        const myId = conference.myUserId();
+        const transport = stats.transport?.[0];
+        let remoteAddress;
+        let remotePort;
+        let localAddress;
+        let localPort;
+        if (transport) {
+          const remoteParts = transport.ip?.split(":") || [];
+          remoteAddress = remoteParts[0];
+          remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : void 0;
+          const localParts = transport.localip?.split(":") || [];
+          localAddress = localParts[0];
+          localPort = localParts[1] ? parseInt(localParts[1], 10) : void 0;
+        }
+        const allParticipantIds = /* @__PURE__ */ new Set([
+          ...Object.keys(stats.resolution || {}),
+          ...Object.keys(stats.framerate || {}),
+          ...Object.keys(stats.codec || {}),
+          myId
+          // Always process local
+        ]);
+        allParticipantIds.forEach((pid) => {
+          const ssrcMapRes = stats.resolution?.[pid];
+          const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] : void 0;
+          const ssrcMapFr = stats.framerate?.[pid];
+          const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] : void 0;
+          const ssrcMapCodec = stats.codec?.[pid];
+          let codecName;
+          let audioSsrc;
+          let videoSsrc;
+          if (ssrcMapCodec) {
+            for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
+              if (codecData.audio) {
+                audioSsrc = ssrc;
+                if (!codecName) codecName = codecData.audio;
+              }
+              if (codecData.video) {
+                videoSsrc = ssrc;
+                codecName = codecData.video;
+              }
+            }
+          }
+          const isLocal = pid === myId;
+          const participantStats = {
+            isLocal,
+            participantId: pid,
+            resolution: resObj ? `${resObj.width}x${resObj.height}` : void 0,
+            frameRate,
+            codec: codecName,
+            audioSsrc,
+            videoSsrc,
+            connectedTo: "Jitsi Videobridge"
+          };
+          if (isLocal) {
+            participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0;
+            participantStats.packetLoss = stats.packetLoss?.total !== void 0 ? stats.packetLoss.total : 0;
+            participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : void 0;
+            participantStats.localAddress = localAddress;
+            participantStats.localPort = localPort;
+            participantStats.remoteAddress = remoteAddress;
+            participantStats.remotePort = remotePort;
+            participantStats.transport = transport?.type;
+            participantStats.servers = stats.serverRegion || "Jitsi Server";
+          }
+          safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: pid, changes: { stats: participantStats } });
+        });
+      });
+      conference.on(remoteStatsEvent, (id, stats) => {
+        if (!stats || !isMountedRef.current) return;
+        const parsedRemoteStats = {
+          isLocal: false,
+          participantId: id,
+          bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0,
+          packetLoss: stats.packetLoss?.total || 0,
+          connectedTo: "Jitsi Videobridge"
+        };
+        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { stats: parsedRemoteStats } });
       });
       conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id, text, ts) => {
         if (id === conference.myUserId()) return;
@@ -925,6 +1039,101 @@ function JitsiProvider({
 function useJitsi() {
   return useJitsiContext();
 }
+function ParticipantStatsPanel({ stats, className, style, children }) {
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(stats) });
+  if (stats.isScreenShare) {
+    return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-stats-panel ${className || ""}`, style, children: [
+      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-stats-panel__header", children: "Screen Share Statistics" }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-stats-panel__grid", children: [
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Resolution", value: stats.resolution }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Frame rate", value: stats.frameRate ? `${stats.frameRate} fps` : void 0 })
+      ] })
+    ] });
+  }
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-stats-panel ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-stats-panel__header", children: stats.isLocal ? "Local Statistics" : "Remote Statistics" }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-stats-panel__grid", children: [
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Connection", value: stats.connectionStatus }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Bitrate", value: stats.bitrate ? `${stats.bitrate} kbps` : void 0 }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Packet loss", value: stats.packetLoss !== void 0 ? `${stats.packetLoss}%` : void 0 }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Resolution", value: stats.resolution }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Frame rate", value: stats.frameRate ? `${stats.frameRate} fps` : void 0 }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Codecs", value: stats.codec }),
+      stats.isLocal && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Estimated bandwidth", value: stats.estimatedBandwidth ? `${stats.estimatedBandwidth} kbps` : void 0 }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Remote address", value: stats.remoteAddress }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Remote port", value: stats.remotePort?.toString() }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Local address", value: stats.localAddress }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Local port", value: stats.localPort?.toString() }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Transport", value: stats.transport }),
+        /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Servers", value: stats.servers })
+      ] }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Connected to", value: stats.connectedTo }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "SSRC Audio", value: stats.audioSsrc }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "SSRC Video", value: stats.videoSsrc }),
+      /* @__PURE__ */ jsxRuntime.jsx(StatItem, { label: "Participant ID", value: stats.participantId })
+    ] })
+  ] });
+}
+function StatItem({ label, value }) {
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-stats-panel__item", children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-stats-panel__label", children: [
+      label,
+      ":"
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-stats-panel__value", children: value ?? "N/A" })
+  ] });
+}
+function ConnectionIndicator({ participant, stats, className, style, children }) {
+  const status = participant.connectionStatus || "active";
+  let color = "#22c55e";
+  let bars = 3;
+  if (status === "inactive") {
+    color = "#f59e0b";
+    bars = 2;
+  } else if (status === "interrupted") {
+    color = "#ef4444";
+    bars = 1;
+  } else if (status === "restoring") {
+    color = "#f97316";
+    bars = 1;
+  }
+  const displayStats = {
+    isLocal: participant.isLocal,
+    connectionStatus: status,
+    participantId: participant.id,
+    ...participant.stats || {},
+    ...stats || {}
+  };
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(status, bars, color, displayStats) });
+  return /* @__PURE__ */ jsxRuntime.jsxs(HoverCard__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsxs(
+      "div",
+      {
+        className: `rj-connection-indicator ${className || ""}`,
+        style: { position: "relative", display: "flex", alignItems: "flex-end", gap: "2px", height: "14px", cursor: "help", ...style },
+        children: [
+          /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "3px", height: "6px", backgroundColor: color, borderRadius: "1px" } }),
+          /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "3px", height: "10px", backgroundColor: bars >= 2 ? color : "rgba(255,255,255,0.2)", borderRadius: "1px" } }),
+          /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "3px", height: "14px", backgroundColor: bars === 3 ? color : "rgba(255,255,255,0.2)", borderRadius: "1px" } })
+        ]
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsxs(
+      HoverCard__namespace.Content,
+      {
+        side: "top",
+        align: "center",
+        sideOffset: 8,
+        style: { zIndex: 1e3, filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.5))" },
+        children: [
+          /* @__PURE__ */ jsxRuntime.jsx(ParticipantStatsPanel, { stats: displayStats, style: { minWidth: "220px", marginTop: 0 } }),
+          /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Arrow, { fill: "var(--rj-card, #1e1e1e)" })
+        ]
+      }
+    ) })
+  ] });
+}
 function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = true }) {
   const videoRef = React4.useRef(null);
   const { localTracks, videoMuted, participants, localParticipantId, isMirrored } = useJitsiContext();
@@ -946,13 +1155,13 @@ function LocalVideo({ className, style, mirror, muted = true, showPlaceholder = 
     // Hide but keep mounted when muted
     display: isHidden ? "none" : void 0
   };
-  const localName = localParticipantId ? participants.get(localParticipantId)?.displayName || "Me" : "Me";
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-local-video ${className || ""}`, style, children: [
+  const localParticipant = localParticipantId ? participants.get(localParticipantId) : null;
+  const localName = localParticipant?.displayName || "Me";
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-local-video ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx("video", { className: "rj-local-video__video", ref: videoRef, autoPlay: true, playsInline: true, muted, style: videoStyle }),
-      isHidden && showPlaceholder && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-local-video__placeholder", children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-avatar", children: localName.charAt(0).toUpperCase() }) })
-    ]
-  });
+    isHidden && showPlaceholder && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-local-video__placeholder", children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-avatar", children: localName.charAt(0).toUpperCase() }) }),
+    localParticipant && /* @__PURE__ */ jsxRuntime.jsx("div", { style: { position: "absolute", bottom: "8px", right: "8px", zIndex: 10, padding: "4px", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: "4px" }, children: /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant: localParticipant }) })
+  ] });
 }
 var defaultProps = {
   width: 20,
@@ -964,126 +1173,92 @@ var defaultProps = {
   strokeLinecap: "round",
   strokeLinejoin: "round"
 };
-var MicOnIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+var MicOnIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-  ]
-});
-var MicOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var MicOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-  ]
-});
-var MicMutedSmallIcon = ({ size = 14 }) => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", children: [
+] });
+var MicMutedSmallIcon = ({ size = 14 }) => /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" })
-  ]
-});
-var VideoOnIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var VideoOnIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("polygon", { points: "23 7 16 12 23 17 23 7" }),
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "1", y: "5", width: "15", height: "14", rx: "2", ry: "2" })
-  ]
-});
-var VideoOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var VideoOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" })
-  ]
-});
-var VideoMutedSmallIcon = ({ size = 14 }) => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", children: [
+] });
+var VideoMutedSmallIcon = ({ size = 14 }) => /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", children: [
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" })
-  ]
-});
-var MicMutedOverlayIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  width: 12, height: 12, viewBox: "0 0 24 24", fill: "none", stroke: "#fff", strokeWidth: 2.5, children: [
+] });
+var MicMutedOverlayIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: 12, height: 12, viewBox: "0 0 24 24", fill: "none", stroke: "#fff", strokeWidth: 2.5, children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "19", x2: "12", y2: "23" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "23", x2: "16", y2: "23" })
-  ]
-});
-var ScreenShareIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var ScreenShareIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "2", y: "3", width: "20", height: "14", rx: "2", ry: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "21", x2: "16", y2: "21" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "17", x2: "12", y2: "21" }),
   /* @__PURE__ */ jsxRuntime.jsx("polyline", { points: "8 10 12 6 16 10" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "6", x2: "12", y2: "14" })
-  ]
-});
-var StopShareIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var StopShareIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "2", y: "3", width: "20", height: "14", rx: "2", ry: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "8", y1: "21", x2: "16", y2: "21" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "17", x2: "12", y2: "21" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "2", y1: "3", x2: "22", y2: "17" })
-  ]
-});
-var PhoneOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var PhoneOffIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "23", y1: "1", x2: "1", y2: "23" })
-  ]
-});
+] });
 var ChatIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { ...defaultProps, children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }) });
-var MirrorIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+var MirrorIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "2", x2: "12", y2: "22", strokeDasharray: "4 2" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 7l3 5-3 5" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M7 7l-3 5 3 5" })
-  ]
-});
-var RecordIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var RecordIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "12", cy: "12", r: "3", fill: "currentColor" })
-  ]
-});
-var StopRecordIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var StopRecordIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "12", cy: "12", r: "8" }),
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "9", y: "9", width: "6", height: "6", fill: "currentColor" })
-  ]
-});
-var CaptionsIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var CaptionsIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "2", y: "4", width: "20", height: "16", rx: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M7 12h2m4 0h4M7 16h10" })
-  ]
-});
-var PollIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var PollIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "18", y1: "20", x2: "18", y2: "10" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "20", x2: "12", y2: "4" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "6", y1: "20", x2: "6", y2: "14" })
-  ]
-});
+] });
 var NoiseIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { ...defaultProps, children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M2 12h2l3-9 4 18 4-18 3 9h2" }) });
-var WhiteboardIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+var WhiteboardIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M3 9h18M9 21V9" })
-  ]
-});
-var BackgroundIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-  ...defaultProps, children: [
+] });
+var BackgroundIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "8.5", cy: "8.5", r: "1.5" }),
   /* @__PURE__ */ jsxRuntime.jsx("polyline", { points: "21 15 16 10 5 21" })
-  ]
-});
+] });
 var EmptyRoomIcon = () => /* @__PURE__ */ jsxRuntime.jsxs(
   "svg",
   {
@@ -1114,20 +1289,18 @@ function RemoteVideos({
   if (remoteParticipants.length === 0) {
     return null;
   }
-  return /* @__PURE__ */ jsxRuntime.jsx("div", {
-    className: `rj-remote-grid ${className || ""}`, style, children: remoteParticipants.map((participant) => {
-      const tracks = remoteTracks.get(participant.id) || [];
-      return /* @__PURE__ */ jsxRuntime.jsx(
-        RemoteParticipantTile,
-        {
-          participant,
-          tracks,
-          renderParticipant
-        },
-        participant.id
-      );
-    })
-  });
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-remote-grid ${className || ""}`, style, children: remoteParticipants.map((participant) => {
+    const tracks = remoteTracks.get(participant.id) || [];
+    return /* @__PURE__ */ jsxRuntime.jsx(
+      RemoteParticipantTile,
+      {
+        participant,
+        tracks,
+        renderParticipant
+      },
+      participant.id
+    );
+  }) });
 }
 function RemoteParticipantTile({
   participant,
@@ -1168,40 +1341,38 @@ function RemoteParticipantTile({
     return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: renderParticipant(participant, videoRef, audioRef, tracks) });
   }
   const hasVideo = cameraTrack && !participant.videoMuted;
-  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, {
-    children: [
-      screenTrack && /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-remote-tile", children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+    screenTrack && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", children: [
       /* @__PURE__ */ jsxRuntime.jsx("video", { className: "rj-remote-tile__video", ref: screenRef, autoPlay: true, playsInline: true }),
-      /* @__PURE__ */ jsxRuntime.jsxs("div", {
-          className: "rj-remote-tile__name", children: [
-            "\u{1F4FA} ",
-            participant.displayName,
-            "'s screen"
-          ]
-        })
-        ]
-      }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-remote-tile", children: [
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile__name", style: { display: "flex", alignItems: "center", gap: "8px" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsxs("span", { children: [
+          "\u{1F4FA} ",
+          participant.displayName,
+          "'s screen"
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant, stats: { isScreenShare: true, participantId: participant.id } })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", children: [
       /* @__PURE__ */ jsxRuntime.jsx(
-          "video",
-          {
-            className: "rj-remote-tile__video",
-            ref: videoRef,
-            autoPlay: true,
-            playsInline: true,
-            style: { display: hasVideo ? void 0 : "none" }
-          }
-        ),
-          !hasVideo && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__avatar", children: participant.displayName.charAt(0).toUpperCase() }),
+        "video",
+        {
+          className: "rj-remote-tile__video",
+          ref: videoRef,
+          autoPlay: true,
+          playsInline: true,
+          style: { display: hasVideo ? void 0 : "none" }
+        }
+      ),
+      !hasVideo && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__avatar", children: participant.displayName.charAt(0).toUpperCase() }),
       /* @__PURE__ */ jsxRuntime.jsx("audio", { ref: audioRef, autoPlay: true }),
-      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__name", children: participant.displayName }),
-          participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__mute-icon", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedOverlayIcon, {}) })
-        ]
-      })
-    ]
-  });
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile__name", style: { display: "flex", alignItems: "center", gap: "8px" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx("span", { children: participant.displayName }),
+        /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant })
+      ] }),
+      participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__mute-icon", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedOverlayIcon, {}) })
+    ] })
+  ] });
 }
 function mergeProps(childProps, slotProps) {
   const merged = { ...childProps };
@@ -1504,8 +1675,7 @@ function ConnectionStatus({ className, style, children }) {
   }
   const color = getStatusColor(connectionStatus, conferenceStatus);
   const label = getStatusLabel(connectionStatus, conferenceStatus);
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-connection ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-connection ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx(
       "div",
       {
@@ -1517,27 +1687,22 @@ function ConnectionStatus({ className, style, children }) {
       }
     ),
     /* @__PURE__ */ jsxRuntime.jsx("span", { children: label }),
-      conferenceStatus === "joined" && /* @__PURE__ */ jsxRuntime.jsxs("span", {
-        className: "rj-connection__count", children: [
-          "\xB7 ",
-          participantCount,
-          " ",
-          participantCount === 1 ? "participant" : "participants"
-        ]
-      })
-    ]
-  });
+    conferenceStatus === "joined" && /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-connection__count", children: [
+      "\xB7 ",
+      participantCount,
+      " ",
+      participantCount === 1 ? "participant" : "participants"
+    ] })
+  ] });
 }
 function RecordingIndicator({ className, style, children }) {
   const { isRecording } = useJitsiContext();
   if (!isRecording) return null;
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isRecording) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-rec-indicator ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-rec-indicator ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-rec-indicator__dot" }),
     /* @__PURE__ */ jsxRuntime.jsx("span", { children: "REC" })
-    ]
-  });
+  ] });
 }
 function ChatPanel({ className, style, placeholder = "Type a message...", children }) {
   const { messages, sendMessage, unreadCount, markMessagesRead } = useJitsiContext();
@@ -1559,33 +1724,23 @@ function ChatPanel({ className, style, placeholder = "Type a message...", childr
     markMessagesRead();
   }, [messages.length, markMessagesRead]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(messages, sendMessage, unreadCount) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-chat-panel ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-chat-panel__header", children: [
-        "Chat (",
-        messages.length,
-        ")"
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-chat-panel__messages", children: [
-        messages.map((msg) => /* @__PURE__ */ jsxRuntime.jsxs("div", {
-          className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
-            !msg.isLocal && /* @__PURE__ */ jsxRuntime.jsxs("span", {
-              className: "rj-msg__sender", children: [
-                msg.displayName,
-                msg.isPrivate ? " (private)" : ""
-              ]
-            }),
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-chat-panel ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-chat-panel__header", children: [
+      "Chat (",
+      messages.length,
+      ")"
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-chat-panel__messages", children: [
+      messages.map((msg) => /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
+        !msg.isLocal && /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-msg__sender", children: [
+          msg.displayName,
+          msg.isPrivate ? " (private)" : ""
+        ] }),
         /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-msg__bubble ${msg.isLocal ? "rj-msg__bubble--local" : ""}`, children: msg.text })
-          ]
-        }, msg.id)),
+      ] }, msg.id)),
       /* @__PURE__ */ jsxRuntime.jsx("div", { ref: messagesEndRef })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-chat-panel__input-area", children: [
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-chat-panel__input-area", children: [
       /* @__PURE__ */ jsxRuntime.jsx(
         "input",
         {
@@ -1597,10 +1752,27 @@ function ChatPanel({ className, style, placeholder = "Type a message...", childr
         }
       ),
       /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-send-btn", onClick: handleSend, type: "button", children: "Send" })
-      ]
-    })
-    ]
-  });
+    ] })
+  ] });
+}
+function AdminControls({ participantId, className, style, children }) {
+  const { participants, localRole, kickParticipant, muteParticipant, grantModerator } = useJitsiContext();
+  if (localRole !== "moderator") return null;
+  const participant = participants.get(participantId);
+  if (!participant || participant.isLocal) return null;
+  const actions = {
+    kick: () => kickParticipant(participantId),
+    muteAudio: () => muteParticipant(participantId, "audio"),
+    muteVideo: () => muteParticipant(participantId, "video"),
+    grantModerator: () => grantModerator(participantId)
+  };
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participant, actions) });
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-admin-controls ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: "Mute" }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: "No Video" }),
+    participant.role !== "moderator" && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: "Promote" }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: "Kick" })
+  ] });
 }
 var AVATAR_COLORS = [
   "#6366f1",
@@ -1638,14 +1810,13 @@ function ParticipantList({
   if (children) {
     return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participantsList) });
   }
-  return /* @__PURE__ */ jsxRuntime.jsx("div", {
-    className: `rj-participant-list ${className || ""}`, style, children: participantsList.map((participant) => {
-      if (renderParticipant) {
-        return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
-      }
-      return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-participant-item", children: [
-      /* @__PURE__ */ jsxRuntime.jsx(
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-participant-list ${className || ""}`, style, children: participantsList.map((participant) => {
+    if (renderParticipant) {
+      return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
+    }
+    return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item", style: { flexWrap: "wrap" }, children: [
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", width: "100%" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(
           "div",
           {
             className: "rj-avatar rj-avatar--sm",
@@ -1653,41 +1824,33 @@ function ParticipantList({
             children: participant.displayName.charAt(0).toUpperCase()
           }
         ),
-      /* @__PURE__ */ jsxRuntime.jsxs("span", {
-          className: "rj-participant-item__name", children: [
-            participant.displayName,
-            participant.isLocal && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(You)" })
-          ]
-        }),
-      /* @__PURE__ */ jsxRuntime.jsxs("div", {
-          className: "rj-participant-item__icons", children: [
-            participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedSmallIcon, {}) }),
-            participant.videoMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", children: /* @__PURE__ */ jsxRuntime.jsx(VideoMutedSmallIcon, {}) })
-          ]
-        })
-        ]
-      }, participant.id);
-    })
-  });
+        /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-participant-item__name", children: [
+          participant.displayName,
+          participant.role === "moderator" && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(Admin)" }),
+          participant.isLocal && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(You)" })
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item__icons", children: [
+          participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedSmallIcon, {}) }),
+          participant.videoMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", style: { marginRight: "4px" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoMutedSmallIcon, {}) }),
+          /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant })
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id, style: { width: "100%", marginTop: "4px" } })
+    ] }, participant.id);
+  }) });
 }
 function Captions({ className, style, maxVisible = 3, children }) {
   const { captions, captionsEnabled } = useJitsiContext();
   if (!captionsEnabled) return null;
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(captions, captionsEnabled) });
   const visible = captions.slice(-maxVisible);
-  return /* @__PURE__ */ jsxRuntime.jsx("div", {
-    className: `rj-captions ${className || ""}`, style, children: visible.map((c, i) => /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-caption", children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("span", {
-        className: "rj-caption__name", children: [
-          c.displayName,
-          ":"
-        ]
-      }),
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-captions ${className || ""}`, style, children: visible.map((c, i) => /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-caption", children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-caption__name", children: [
+      c.displayName,
+      ":"
+    ] }),
     /* @__PURE__ */ jsxRuntime.jsx("span", { children: c.text })
-      ]
-    }, `${c.participantId}-${c.timestamp}-${i}`))
-  });
+  ] }, `${c.participantId}-${c.timestamp}-${i}`)) });
 }
 function PollCreator({ className, style, minOptions = 2, maxOptions = 10, onCreated, children }) {
   const { createPoll } = useJitsiContext();
@@ -1702,79 +1865,69 @@ function PollCreator({ className, style, minOptions = 2, maxOptions = 10, onCrea
     setOptions(["", ""]);
   }, [question, options, minOptions, createPoll, onCreated]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(createPoll) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-panel ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-panel ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: "Question" }),
     /* @__PURE__ */ jsxRuntime.jsx("input", { className: "rj-input", value: question, onChange: (e) => setQuestion(e.target.value), placeholder: "Ask a question..." }),
     /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: "Options" }),
-      options.map((opt, i) => /* @__PURE__ */ jsxRuntime.jsx(
-        "input",
-        {
-          className: "rj-input",
-          value: opt,
-          onChange: (e) => {
-            const n = [...options];
-            n[i] = e.target.value;
-            setOptions(n);
-          },
-          placeholder: `Option ${i + 1}`
+    options.map((opt, i) => /* @__PURE__ */ jsxRuntime.jsx(
+      "input",
+      {
+        className: "rj-input",
+        value: opt,
+        onChange: (e) => {
+          const n = [...options];
+          n[i] = e.target.value;
+          setOptions(n);
         },
-        i
-      )),
-      options.length < maxOptions && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-btn-sm rj-btn-sm--ghost", onClick: () => setOptions([...options, ""]), type: "button", children: "+ Add option" }),
+        placeholder: `Option ${i + 1}`
+      },
+      i
+    )),
+    options.length < maxOptions && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-btn-sm rj-btn-sm--ghost", onClick: () => setOptions([...options, ""]), type: "button", children: "+ Add option" }),
     /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-btn-sm rj-btn-sm--primary", onClick: handleCreate, type: "button", children: "Create Poll" })
-    ]
-  });
+  ] });
 }
 function SinglePoll({ poll }) {
   const { votePoll, closePoll, localParticipantId, localRole } = useJitsiContext();
   const totalVotes = poll.options.reduce((sum, o) => sum + o.voters.length, 0);
   const isMod = localRole === "moderator";
   const isCreator = poll.creatorId === localParticipantId;
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: "rj-panel", children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-panel", children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [
       /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-poll__question", children: poll.question }),
       /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-poll__status", children: poll.isOpen ? "Open" : "Closed" })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("span", {
-      className: "rj-poll__meta", children: [
-        "by ",
-        poll.creatorName,
-        " \xB7 ",
-        totalVotes,
-        " vote",
-        totalVotes !== 1 ? "s" : ""
-      ]
-    }),
-      poll.options.map((opt, i) => {
-        const pct = totalVotes > 0 ? opt.voters.length / totalVotes * 100 : 0;
-        const voted = localParticipantId ? opt.voters.includes(localParticipantId) : false;
-        return /* @__PURE__ */ jsxRuntime.jsxs(
-          "div",
-          {
-            className: `rj-poll__option ${voted ? "rj-poll__option--voted" : ""}`,
-            onClick: () => {
-              if (poll.isOpen) votePoll(poll.id, i);
-            },
-            children: [
-            /* @__PURE__ */ jsxRuntime.jsxs("div", {
-              className: "rj-poll__option-bar-container", children: [
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-poll__meta", children: [
+      "by ",
+      poll.creatorName,
+      " \xB7 ",
+      totalVotes,
+      " vote",
+      totalVotes !== 1 ? "s" : ""
+    ] }),
+    poll.options.map((opt, i) => {
+      const pct = totalVotes > 0 ? opt.voters.length / totalVotes * 100 : 0;
+      const voted = localParticipantId ? opt.voters.includes(localParticipantId) : false;
+      return /* @__PURE__ */ jsxRuntime.jsxs(
+        "div",
+        {
+          className: `rj-poll__option ${voted ? "rj-poll__option--voted" : ""}`,
+          onClick: () => {
+            if (poll.isOpen) votePoll(poll.id, i);
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-poll__option-bar-container", children: [
               /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-poll__option-text", children: opt.text }),
               /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-poll__option-bar-bg", children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-poll__option-bar-fill", style: { width: `${pct}%` } }) })
-              ]
-            }),
+            ] }),
             /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-poll__vote-count", children: opt.voters.length })
-            ]
-          },
-          i
-        );
-      }),
-      poll.isOpen && (isMod || isCreator) && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-poll__close-btn", onClick: () => closePoll(poll.id), type: "button", children: "Close Poll" })
-    ]
-  });
+          ]
+        },
+        i
+      );
+    }),
+    poll.isOpen && (isMod || isCreator) && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-poll__close-btn", onClick: () => closePoll(poll.id), type: "button", children: "Close Poll" })
+  ] });
 }
 function PollDisplay({ className, style, poll: pollProp, children }) {
   const { activePoll, polls, votePoll, closePoll } = useJitsiContext();
@@ -1837,8 +1990,7 @@ function DeviceSelector({
     return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(devices, handleSelect, selectedId) });
   }
   const defaultLabel = label || (kind === "audioinput" ? "Microphone" : kind === "videoinput" ? "Camera" : "Speaker");
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-field-group ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-field-group ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: defaultLabel }),
     /* @__PURE__ */ jsxRuntime.jsx(
       "select",
@@ -1849,8 +2001,7 @@ function DeviceSelector({
         children: devices.map((device) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: device.deviceId, children: device.label || `Device ${device.deviceId.substring(0, 8)}` }, device.deviceId))
       }
     )
-    ]
-  });
+  ] });
 }
 function AudioOutputSelector({ className, style, label, children }) {
   const { getDevices, setAudioOutput } = useJitsiContext();
@@ -1864,12 +2015,10 @@ function AudioOutputSelector({ className, style, label, children }) {
     await setAudioOutput(deviceId);
   }, [setAudioOutput]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(devices, handleSelect, selectedId) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-field-group ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-field-group ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: label || "Speaker" }),
     /* @__PURE__ */ jsxRuntime.jsx("select", { className: "rj-select", value: selectedId || "", onChange: (e) => handleSelect(e.target.value), children: devices.map((d) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: d.deviceId, children: d.label || `Device ${d.deviceId.substring(0, 8)}` }, d.deviceId)) })
-    ]
-  });
+  ] });
 }
 var QUALITY_OPTIONS = [
   { label: "Low (180p)", value: 180 },
@@ -1886,28 +2035,20 @@ var LAST_N = [
 function PerformanceSettings({ className, style, children }) {
   const { setVideoQuality, setSenderQuality, setMaxVisibleParticipants } = useJitsiContext();
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(setVideoQuality, setSenderQuality, setMaxVisibleParticipants) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-panel ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-form-row", children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-panel ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-form-row", children: [
       /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: "Receive Quality" }),
       /* @__PURE__ */ jsxRuntime.jsx("select", { className: "rj-select", defaultValue: 720, onChange: (e) => setVideoQuality(Number(e.target.value)), children: QUALITY_OPTIONS.map((o) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: o.value, children: o.label }, o.value)) })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-form-row", children: [
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-form-row", children: [
       /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: "Send Quality" }),
       /* @__PURE__ */ jsxRuntime.jsx("select", { className: "rj-select", defaultValue: 720, onChange: (e) => setSenderQuality(Number(e.target.value)), children: QUALITY_OPTIONS.map((o) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: o.value, children: o.label }, o.value)) })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-form-row", children: [
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-form-row", children: [
       /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", children: "Max Visible Participants" }),
       /* @__PURE__ */ jsxRuntime.jsx("select", { className: "rj-select", defaultValue: 20, onChange: (e) => setMaxVisibleParticipants(Number(e.target.value)), children: LAST_N.map((o) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: o.value, children: o.label }, o.value)) })
-      ]
-    })
-    ]
-  });
+    ] })
+  ] });
 }
 function ScreenSharePreview() {
   const { localScreenTrack, isScreenSharing } = useJitsiContext();
@@ -1921,141 +2062,112 @@ function ScreenSharePreview() {
     };
   }, [localScreenTrack]);
   if (!isScreenSharing || !localScreenTrack) return null;
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: "rj-screen-tile", children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-screen-tile", children: [
     /* @__PURE__ */ jsxRuntime.jsx("video", { className: "rj-screen-tile__video", ref: videoRef, autoPlay: true, playsInline: true, muted: true }),
-    /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-screen-tile__label", children: "\u{1F4FA} Your screen" })
-    ]
-  });
+    /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-screen-tile__label", children: "Your screen" })
+  ] });
 }
 function MeetingUI({ title, showSidebar = true, showSettings = true }) {
+  const { participants } = useJitsiContext();
+  const hasRemoteParticipants = Array.from(participants.values()).some((p) => !p.isLocal);
   const [sidebarOpen, setSidebarOpen] = React4.useState(showSidebar);
   const [activeTab, setActiveTab] = React4.useState("participants");
   const [showPollCreator, setShowPollCreator] = React4.useState(false);
-  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, {
-    children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-meeting__header", children: [
-      /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-meeting__title", children: [
-        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__logo", children: "J" }),
-        /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "Jitsi Meeting" })
-        ]
-      }),
-      /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-meeting__header-actions", children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header", children: [
+      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__title", children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "Jitsi Meeting" }) }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header-actions", children: [
         /* @__PURE__ */ jsxRuntime.jsx(RecordingIndicator, {}),
         /* @__PURE__ */ jsxRuntime.jsx(ConnectionStatus, {})
-        ]
-      })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-meeting__main", children: [
-      /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: "rj-meeting__video-area", children: [
-        /* @__PURE__ */ jsxRuntime.jsxs("div", {
-          className: "rj-meeting__remote-area", children: [
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__main", children: [
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__video-area", children: [
+        /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__remote-area", children: [
           /* @__PURE__ */ jsxRuntime.jsx(ScreenSharePreview, {}),
           /* @__PURE__ */ jsxRuntime.jsx(RemoteVideos, { style: { maxHeight: "100%" } }),
-          /* @__PURE__ */ jsxRuntime.jsxs("div", {
-            id: "empty-room", className: "rj-meeting__empty", children: [
+          !hasRemoteParticipants && /* @__PURE__ */ jsxRuntime.jsxs("div", { id: "empty-room", className: "rj-meeting__empty", children: [
             /* @__PURE__ */ jsxRuntime.jsx(EmptyRoomIcon, {}),
             /* @__PURE__ */ jsxRuntime.jsx("span", { style: { fontSize: "14px" }, children: "Waiting for others to join..." })
-            ]
-          })
-          ]
-        }),
+          ] })
+        ] }),
         /* @__PURE__ */ jsxRuntime.jsx(Captions, {}),
         /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__local-video", children: /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, {}) })
-        ]
-      }),
-        sidebarOpen && /* @__PURE__ */ jsxRuntime.jsxs("div", {
-          className: "rj-meeting__sidebar", children: [
-        /* @__PURE__ */ jsxRuntime.jsxs("div", {
-            className: "rj-meeting__tab-bar", children: [
+      ] }),
+      sidebarOpen && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__sidebar", children: [
+        /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__tab-bar", children: [
           /* @__PURE__ */ jsxRuntime.jsx(
+            "button",
+            {
+              type: "button",
+              className: `rj-meeting__tab ${activeTab === "participants" ? "rj-meeting__tab--active" : ""}`,
+              onClick: () => setActiveTab("participants"),
+              children: "People"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntime.jsx(
+            "button",
+            {
+              type: "button",
+              className: `rj-meeting__tab ${activeTab === "chat" ? "rj-meeting__tab--active" : ""}`,
+              onClick: () => setActiveTab("chat"),
+              children: "Chat"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntime.jsx(
+            "button",
+            {
+              type: "button",
+              className: `rj-meeting__tab ${activeTab === "polls" ? "rj-meeting__tab--active" : ""}`,
+              onClick: () => setActiveTab("polls"),
+              children: "Polls"
+            }
+          ),
+          showSettings && /* @__PURE__ */ jsxRuntime.jsx(
+            "button",
+            {
+              type: "button",
+              className: `rj-meeting__tab ${activeTab === "settings" ? "rj-meeting__tab--active" : ""}`,
+              onClick: () => setActiveTab("settings"),
+              children: "Settings"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__sidebar-content", children: [
+          activeTab === "participants" && /* @__PURE__ */ jsxRuntime.jsx(ParticipantList, {}),
+          activeTab === "chat" && /* @__PURE__ */ jsxRuntime.jsx(ChatPanel, { style: { height: "100%", borderRadius: 0, backgroundColor: "transparent" } }),
+          activeTab === "polls" && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", flexDirection: "column", gap: "12px" }, children: [
+            !showPollCreator && /* @__PURE__ */ jsxRuntime.jsx(
               "button",
               {
                 type: "button",
-                className: `rj-meeting__tab ${activeTab === "participants" ? "rj-meeting__tab--active" : ""}`,
-                onClick: () => setActiveTab("participants"),
-                children: "People"
+                style: {
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px dashed rgba(255,255,255,0.2)",
+                  backgroundColor: "transparent",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontFamily: "'Inter', sans-serif"
+                },
+                onClick: () => setShowPollCreator(true),
+                children: "+ Create Poll"
               }
             ),
-          /* @__PURE__ */ jsxRuntime.jsx(
-              "button",
-              {
-                type: "button",
-                className: `rj-meeting__tab ${activeTab === "chat" ? "rj-meeting__tab--active" : ""}`,
-                onClick: () => setActiveTab("chat"),
-                children: "Chat"
-              }
-            ),
-          /* @__PURE__ */ jsxRuntime.jsx(
-              "button",
-              {
-                type: "button",
-                className: `rj-meeting__tab ${activeTab === "polls" ? "rj-meeting__tab--active" : ""}`,
-                onClick: () => setActiveTab("polls"),
-                children: "Polls"
-              }
-            ),
-              showSettings && /* @__PURE__ */ jsxRuntime.jsx(
-                "button",
-                {
-                  type: "button",
-                  className: `rj-meeting__tab ${activeTab === "settings" ? "rj-meeting__tab--active" : ""}`,
-                  onClick: () => setActiveTab("settings"),
-                  children: "Settings"
-                }
-              )
-            ]
-          }),
-        /* @__PURE__ */ jsxRuntime.jsxs("div", {
-            className: "rj-meeting__sidebar-content", children: [
-              activeTab === "participants" && /* @__PURE__ */ jsxRuntime.jsx(ParticipantList, {}),
-              activeTab === "chat" && /* @__PURE__ */ jsxRuntime.jsx(ChatPanel, { style: { height: "100%", borderRadius: 0, backgroundColor: "transparent" } }),
-              activeTab === "polls" && /* @__PURE__ */ jsxRuntime.jsxs("div", {
-                style: { display: "flex", flexDirection: "column", gap: "12px" }, children: [
-                  !showPollCreator && /* @__PURE__ */ jsxRuntime.jsx(
-                    "button",
-                    {
-                      type: "button",
-                      style: {
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        border: "1px dashed rgba(255,255,255,0.2)",
-                        backgroundColor: "transparent",
-                        color: "#a5b4fc",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                        fontFamily: "'Inter', sans-serif"
-                      },
-                      onClick: () => setShowPollCreator(true),
-                      children: "+ Create Poll"
-                    }
-                  ),
-                  showPollCreator && /* @__PURE__ */ jsxRuntime.jsx(PollCreator, { onCreated: () => setShowPollCreator(false) }),
+            showPollCreator && /* @__PURE__ */ jsxRuntime.jsx(PollCreator, { onCreated: () => setShowPollCreator(false) }),
             /* @__PURE__ */ jsxRuntime.jsx(PollDisplay, {})
-                ]
-              }),
-              activeTab === "settings" && /* @__PURE__ */ jsxRuntime.jsxs("div", {
-                className: "rj-meeting__settings-group", children: [
+          ] }),
+          activeTab === "settings" && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__settings-group", children: [
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "audioinput", label: "Microphone" }),
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "videoinput", label: "Camera" }),
             /* @__PURE__ */ jsxRuntime.jsx(AudioOutputSelector, { label: "Speaker" }),
             /* @__PURE__ */ jsxRuntime.jsx("div", { style: { borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px" }, children: /* @__PURE__ */ jsxRuntime.jsx(PerformanceSettings, { style: { padding: 0, backgroundColor: "transparent" } }) })
-                ]
-              })
-            ]
-          })
-          ]
-        })
-      ]
-    }),
-    /* @__PURE__ */ jsxRuntime.jsxs("div", {
-      className: "rj-meeting__toolbar", children: [
+          ] })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar", children: [
       /* @__PURE__ */ jsxRuntime.jsx(ToggleAudio, {}),
       /* @__PURE__ */ jsxRuntime.jsx(ToggleVideo, {}),
       /* @__PURE__ */ jsxRuntime.jsx(ToggleMirror, {}),
@@ -2064,45 +2176,41 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }) {
       /* @__PURE__ */ jsxRuntime.jsx(ToggleRecording, {}),
       /* @__PURE__ */ jsxRuntime.jsx(ToggleCaptions, {}),
       /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
-      /* @__PURE__ */ jsxRuntime.jsx(ToggleChat, {
-        children: (_isOpen, _toggle, unread) => /* @__PURE__ */ jsxRuntime.jsxs(
+      /* @__PURE__ */ jsxRuntime.jsx(ToggleChat, { children: (_isOpen, _toggle, unread) => /* @__PURE__ */ jsxRuntime.jsxs(
+        "button",
+        {
+          type: "button",
+          className: `rj-btn ${sidebarOpen && activeTab === "chat" ? "rj-btn--accent" : "rj-btn--active"}`,
+          style: { position: "relative" },
+          onClick: () => {
+            setSidebarOpen(true);
+            setActiveTab("chat");
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntime.jsx(ChatIcon, {}),
+            unread > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--danger", children: unread > 99 ? "99+" : unread })
+          ]
+        }
+      ) }),
+      /* @__PURE__ */ jsxRuntime.jsx(TogglePolls, { children: (_isOpen, _toggle, polls) => {
+        const active = polls.filter((p) => p.isOpen).length;
+        return /* @__PURE__ */ jsxRuntime.jsxs(
           "button",
           {
             type: "button",
-            className: `rj-btn ${sidebarOpen && activeTab === "chat" ? "rj-btn--accent" : "rj-btn--active"}`,
+            className: `rj-btn ${sidebarOpen && activeTab === "polls" ? "rj-btn--accent" : "rj-btn--active"}`,
             style: { position: "relative" },
             onClick: () => {
               setSidebarOpen(true);
-              setActiveTab("chat");
+              setActiveTab("polls");
             },
             children: [
-            /* @__PURE__ */ jsxRuntime.jsx(ChatIcon, {}),
-              unread > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--danger", children: unread > 99 ? "99+" : unread })
+              /* @__PURE__ */ jsxRuntime.jsx(PollIcon, {}),
+              active > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: active })
             ]
           }
-        )
-      }),
-      /* @__PURE__ */ jsxRuntime.jsx(TogglePolls, {
-        children: (_isOpen, _toggle, polls) => {
-          const active = polls.filter((p) => p.isOpen).length;
-          return /* @__PURE__ */ jsxRuntime.jsxs(
-            "button",
-            {
-              type: "button",
-              className: `rj-btn ${sidebarOpen && activeTab === "polls" ? "rj-btn--accent" : "rj-btn--active"}`,
-              style: { position: "relative" },
-              onClick: () => {
-                setSidebarOpen(true);
-                setActiveTab("polls");
-              },
-              children: [
-              /* @__PURE__ */ jsxRuntime.jsx(PollIcon, {}),
-                active > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: active })
-              ]
-            }
-          );
-        }
-      }),
+        );
+      } }),
       /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
       /* @__PURE__ */ jsxRuntime.jsx(
         "button",
@@ -2114,22 +2222,18 @@ function MeetingUI({ title, showSidebar = true, showSettings = true }) {
             setActiveTab("participants");
           },
           title: "Toggle participants",
-          children: /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-            width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
+          children: /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
             /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
             /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "9", cy: "7", r: "4" }),
             /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
             /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
-            ]
-          })
+          ] })
         }
       ),
       /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.12)" } }),
       /* @__PURE__ */ jsxRuntime.jsx(LeaveButton, { label: "Leave" })
-      ]
-    })
-    ]
-  });
+    ] })
+  ] });
 }
 function JitsiMeeting({
   title,
@@ -2238,8 +2342,7 @@ function ChatInput({ className, style, placeholder = "Type a message...", privat
     setText("");
   }, [text, sendMessage, privateTo]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(text, setText, send) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-chat-input ${className || ""}`, style, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-chat-input ${className || ""}`, style, children: [
     /* @__PURE__ */ jsxRuntime.jsx(
       "input",
       {
@@ -2256,28 +2359,21 @@ function ChatInput({ className, style, placeholder = "Type a message...", privat
       }
     ),
     /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-send-btn", onClick: send, type: "button", children: "Send" })
-    ]
-  });
+  ] });
 }
 function ChatMessages({ className, style, renderMessage, children }) {
   const { messages } = useJitsiContext();
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(messages) });
-  return /* @__PURE__ */ jsxRuntime.jsx("div", {
-    className: `rj-msg-list ${className || ""}`, style, children: messages.map((msg) => {
-      if (renderMessage) return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderMessage(msg) }, msg.id);
-      return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-        className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
-      /* @__PURE__ */ jsxRuntime.jsxs("span", {
-          className: "rj-msg__sender", children: [
-            msg.displayName,
-            msg.isPrivate ? " (private)" : ""
-          ]
-        }),
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-msg-list ${className || ""}`, style, children: messages.map((msg) => {
+    if (renderMessage) return /* @__PURE__ */ jsxRuntime.jsx(React4__default.default.Fragment, { children: renderMessage(msg) }, msg.id);
+    return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
+      /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-msg__sender", children: [
+        msg.displayName,
+        msg.isPrivate ? " (private)" : ""
+      ] }),
       /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-msg__bubble ${msg.isLocal ? "rj-msg__bubble--local" : ""}`, children: msg.text })
-        ]
-      }, msg.id);
-    })
-  });
+    ] }, msg.id);
+  }) });
 }
 function Whiteboard({ className, style, onDataReceived, children }) {
   const { whiteboardActive, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
@@ -2291,18 +2387,14 @@ function Whiteboard({ className, style, onDataReceived, children }) {
   }, [sendWhiteboardData]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, sendData, toggleWhiteboard) });
   if (!whiteboardActive) return null;
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-panel ${className || ""}`, style: { alignItems: "center", justifyContent: "center", minHeight: "400px", border: "2px dashed rgba(255,255,255,0.15)", ...style }, children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("svg", {
-      width: "48", height: "48", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round", style: { opacity: 0.4 }, children: [
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-panel ${className || ""}`, style: { alignItems: "center", justifyContent: "center", minHeight: "400px", border: "2px dashed rgba(255,255,255,0.15)", ...style }, children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "48", height: "48", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round", style: { opacity: 0.4 }, children: [
       /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2" }),
       /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M3 9h18M9 21V9" })
-      ]
-    }),
+    ] }),
     /* @__PURE__ */ jsxRuntime.jsx("span", { style: { color: "#9ca3af" }, children: "Whiteboard active \u2014 Integrate your preferred whiteboard library" }),
     /* @__PURE__ */ jsxRuntime.jsx("span", { style: { fontSize: "12px", color: "#6b7280" }, children: "Use the render prop API for full control" })
-    ]
-  });
+  ] });
 }
 function ToggleWhiteboard({ className, style, asChild, children }) {
   const { whiteboardActive, toggleWhiteboard } = useJitsiContext();
@@ -2325,26 +2417,6 @@ function ToggleWhiteboard({ className, style, asChild, children }) {
       children: /* @__PURE__ */ jsxRuntime.jsx(WhiteboardIcon, {})
     }
   );
-}
-function AdminControls({ participantId, className, style, children }) {
-  const { participants, localRole, kickParticipant, muteParticipant, grantModerator } = useJitsiContext();
-  if (localRole !== "moderator") return null;
-  const participant = participants.get(participantId);
-  const actions = {
-    kick: () => kickParticipant(participantId),
-    muteAudio: () => muteParticipant(participantId, "audio"),
-    muteVideo: () => muteParticipant(participantId, "video"),
-    grantModerator: () => grantModerator(participantId)
-  };
-  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participant, actions) });
-  return /* @__PURE__ */ jsxRuntime.jsxs("div", {
-    className: `rj-admin-controls ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: "Mute" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: "No Video" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: "Promote" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: "Kick" })
-    ]
-  });
 }
 function MuteAllButton({ className, style, mediaType = "audio", asChild, children }) {
   const { localRole, muteAll } = useJitsiContext();
@@ -2379,6 +2451,7 @@ exports.ChatIcon = ChatIcon;
 exports.ChatInput = ChatInput;
 exports.ChatMessages = ChatMessages;
 exports.ChatPanel = ChatPanel;
+exports.ConnectionIndicator = ConnectionIndicator;
 exports.ConnectionStatus = ConnectionStatus;
 exports.DeviceSelector = DeviceSelector;
 exports.EmptyRoomIcon = EmptyRoomIcon;
@@ -2394,6 +2467,7 @@ exports.MirrorIcon = MirrorIcon;
 exports.MuteAllButton = MuteAllButton;
 exports.NoiseIcon = NoiseIcon;
 exports.ParticipantList = ParticipantList;
+exports.ParticipantStatsPanel = ParticipantStatsPanel;
 exports.PerformanceSettings = PerformanceSettings;
 exports.PhoneOffIcon = PhoneOffIcon;
 exports.PollCreator = PollCreator;

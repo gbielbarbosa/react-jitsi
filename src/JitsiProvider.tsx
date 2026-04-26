@@ -38,19 +38,13 @@ function getJitsiMeetJS(): JitsiMeetJSStatic {
       throw new Error(
         '[react-jitsi] Found JitsiMeetExternalAPI (IFrame API), but this SDK requires lib-jitsi-meet.\n' +
         'Please replace the external_api.js script with lib-jitsi-meet:\n\n' +
-        '  For JaaS (8x8.vc):\n' +
-        '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n' +
-        '  For meet.jit.si:\n' +
-        '  <script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>'
+        '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n'
       );
     }
     throw new Error(
       '[react-jitsi] JitsiMeetJS is not available. ' +
       'Please load lib-jitsi-meet via a <script> tag before using <JitsiProvider>.\n\n' +
-      '  For JaaS (8x8.vc):\n' +
-      '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n' +
-      '  For meet.jit.si:\n' +
-      '  <script src="https://meet.jit.si/libs/lib-jitsi-meet.min.js"></script>'
+      '  <script src="https://8x8.vc/libs/lib-jitsi-meet.min.js"></script>\n\n'
     );
   }
   return g['JitsiMeetJS'] as JitsiMeetJSStatic;
@@ -209,7 +203,17 @@ function jitsiReducer(state: JitsiState, action: JitsiAction): JitsiState {
     case 'UPDATE_PARTICIPANT': {
       const m = new Map(state.participants);
       const p = m.get(action.participantId);
-      if (p) m.set(action.participantId, { ...p, ...action.changes });
+      if (p) {
+        const changes = { ...action.changes };
+        // Deep merge stats so LOCAL_STATS_UPDATED and REMOTE_STATS_UPDATED don't overwrite each other
+        if (changes.stats && p.stats) {
+          const cleanNewStats = Object.fromEntries(
+            Object.entries(changes.stats).filter(([_, v]) => v !== undefined)
+          );
+          changes.stats = { ...p.stats, ...cleanNewStats };
+        }
+        m.set(action.participantId, { ...p, ...changes });
+      }
       return { ...state, participants: m };
     }
     case 'SET_LOCAL_PARTICIPANT_ID':
@@ -565,6 +569,110 @@ export function JitsiProvider({
         if (id === myId) {
           safeDispatch({ type: 'SET_LOCAL_ROLE', role: role === 'moderator' ? 'moderator' : 'participant' });
         }
+      });
+
+      conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id: string, status: string) => {
+        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { connectionStatus: status } });
+      });
+
+      // In lib-jitsi-meet, detailed stats are emitted via connectionQuality events.
+      // We fall back to standard string if the object is missing in some versions.
+      const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || 'cq.local_stats_updated';
+      const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || 'cq.remote_stats_updated';
+
+      conference.on(localStatsEvent, (stats: any) => {
+        if (!stats || !isMountedRef.current) return;
+        const myId = conference.myUserId();
+
+        // Parse global/local connection info
+        const transport = stats.transport?.[0];
+        let remoteAddress: string | undefined;
+        let remotePort: number | undefined;
+        let localAddress: string | undefined;
+        let localPort: number | undefined;
+        if (transport) {
+          const remoteParts = transport.ip?.split(':') || [];
+          remoteAddress = remoteParts[0];
+          remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : undefined;
+          const localParts = transport.localip?.split(':') || [];
+          localAddress = localParts[0];
+          localPort = localParts[1] ? parseInt(localParts[1], 10) : undefined;
+        }
+
+        // The stats object contains properties mapped by Participant ID -> SSRC -> Value
+        const allParticipantIds = new Set([
+          ...Object.keys(stats.resolution || {}),
+          ...Object.keys(stats.framerate || {}),
+          ...Object.keys(stats.codec || {}),
+          myId // Always process local
+        ]);
+
+        allParticipantIds.forEach(pid => {
+          const ssrcMapRes = stats.resolution?.[pid];
+          const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] as any : undefined;
+
+          const ssrcMapFr = stats.framerate?.[pid];
+          const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] as number : undefined;
+
+          const ssrcMapCodec = stats.codec?.[pid];
+          let codecName: string | undefined;
+          let audioSsrc: string | undefined;
+          let videoSsrc: string | undefined;
+
+          if (ssrcMapCodec) {
+            for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
+              if ((codecData as any).audio) {
+                audioSsrc = ssrc;
+                if (!codecName) codecName = (codecData as any).audio;
+              }
+              if ((codecData as any).video) {
+                videoSsrc = ssrc;
+                codecName = (codecData as any).video; // Prefer video codec name if available
+              }
+            }
+          }
+
+          const isLocal = pid === myId;
+          const participantStats: any = {
+            isLocal,
+            participantId: pid,
+            resolution: resObj ? `${resObj.width}x${resObj.height}` : undefined,
+            frameRate,
+            codec: codecName,
+            audioSsrc,
+            videoSsrc,
+            connectedTo: 'Jitsi Videobridge'
+          };
+
+          if (isLocal) {
+            participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined;
+            participantStats.packetLoss = stats.packetLoss?.total !== undefined ? stats.packetLoss.total : 0;
+            participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : undefined;
+            participantStats.localAddress = localAddress;
+            participantStats.localPort = localPort;
+            participantStats.remoteAddress = remoteAddress;
+            participantStats.remotePort = remotePort;
+            participantStats.transport = transport?.type;
+            participantStats.servers = stats.serverRegion || 'Jitsi Server';
+          }
+
+          safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: pid, changes: { stats: participantStats } });
+        });
+      });
+
+      conference.on(remoteStatsEvent, (id: string, stats: any) => {
+        if (!stats || !isMountedRef.current) return;
+
+        // Remote stats are usually less detailed but we can still parse what's available
+        const parsedRemoteStats = {
+          isLocal: false,
+          participantId: id,
+          bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined,
+          packetLoss: stats.packetLoss?.total || 0,
+          connectedTo: 'Jitsi Videobridge',
+        };
+
+        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { stats: parsedRemoteStats } });
       });
 
       // Chat — filter out own messages (sendMessage already adds them locally)

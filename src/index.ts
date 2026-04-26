@@ -62,6 +62,8 @@ export { PerformanceSettings } from './components/PerformanceSettings';
 // Status components
 export { ConnectionStatus } from './components/ConnectionStatus';
 export { ParticipantList } from './components/ParticipantList';
+export { ConnectionIndicator } from './components/ConnectionIndicator';
+export { ParticipantStatsPanel } from './components/ParticipantStatsPanel';
 
 // Admin
 export { AdminControls } from './components/AdminControls';
@@ -97,3 +99,5 @@ export type {
   WhiteboardData,
   ScreenShareOptions,
 } from './types';
+
+export type { ParticipantStats, ParticipantStatsPanelProps } from './components/ParticipantStatsPanel';

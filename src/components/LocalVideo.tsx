@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useJitsiContext } from '../JitsiContext';
+import { ConnectionIndicator } from './ConnectionIndicator';
 
 export interface LocalVideoProps {
   className?: string;
@@ -44,7 +45,8 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
     display: isHidden ? 'none' : undefined,
   };
 
-  const localName = localParticipantId ? participants.get(localParticipantId)?.displayName || 'Me' : 'Me';
+  const localParticipant = localParticipantId ? participants.get(localParticipantId) : null;
+  const localName = localParticipant?.displayName || 'Me';
 
   return (
     <div className={`rj-local-video ${className || ''}`} style={style}>
@@ -55,6 +57,13 @@ export function LocalVideo({ className, style, mirror, muted = true, showPlaceho
       {isHidden && showPlaceholder && (
         <div className="rj-local-video__placeholder">
           <div className="rj-avatar">{localName.charAt(0).toUpperCase()}</div>
+        </div>
+      )}
+
+      {/* Connection Indicator Overlay */}
+      {localParticipant && (
+        <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 10, padding: '4px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '4px' }}>
+          <ConnectionIndicator participant={localParticipant} />
         </div>
       )}
     </div>

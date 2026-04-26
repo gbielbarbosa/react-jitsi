@@ -28,6 +28,7 @@ export function AdminControls({ participantId, className, style, children }: Adm
   if (localRole !== 'moderator') return null;
 
   const participant = participants.get(participantId);
+  if (!participant || participant.isLocal) return null;
   const actions = {
     kick: () => kickParticipant(participantId),
     muteAudio: () => muteParticipant(participantId, 'audio'),
@@ -41,7 +42,7 @@ export function AdminControls({ participantId, className, style, children }: Adm
     <div className={`rj-admin-controls ${className || ''}`} style={style}>
       <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteAudio} title="Mute audio" type="button">Mute</button>
       <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteVideo} title="Mute video" type="button">No Video</button>
-      <button className="rj-admin-btn rj-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">Promote</button>
+      {participant.role !== "moderator" && <button className="rj-admin-btn rj-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">Promote</button>}
       <button className="rj-admin-btn rj-admin-btn--kick" onClick={actions.kick} title="Kick participant" type="button">Kick</button>
     </div>
   );

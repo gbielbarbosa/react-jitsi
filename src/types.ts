@@ -17,6 +17,7 @@ export interface JitsiMeetJSStatic {
     conference: Record<string, string>;
     track: Record<string, string>;
     mediaDevices: Record<string, string>;
+    connectionQuality: Record<string, string>;
   };
   errors: {
     connection: Record<string, string>;
@@ -198,6 +199,8 @@ export interface UserInfo {
   avatarUrl?: string;
 }
 
+import type { ParticipantStats } from './components/ParticipantStatsPanel';
+
 export interface Participant {
   id: string;
   displayName: string;
@@ -206,6 +209,8 @@ export interface Participant {
   audioMuted: boolean;
   videoMuted: boolean;
   audioLevel?: number;
+  connectionStatus?: string;
+  stats?: ParticipantStats;
 }
 
 export interface TrackInfo {
@@ -307,7 +312,7 @@ export interface ScreenShareOptions {
 // ---------------------------------------------------------------------------
 
 export interface JitsiProviderProps {
-  /** Jitsi server domain (e.g. "meet.jit.si" or "8x8.vc") */
+  /** Jitsi server domain (e.g. "8x8.vc") */
   domain: string;
   /** Conference room name (just the room, NOT including AppID/tenant) */
   roomName: string;
@@ -337,7 +342,6 @@ export interface JitsiProviderProps {
    *
    * Examples:
    * - `wss://8x8.vc/xmpp-websocket`
-   * - `https://meet.jit.si/http-bind` (BOSH fallback)
    */
   serviceUrl?: string;
   /**
@@ -348,9 +352,9 @@ export interface JitsiProviderProps {
    * ```tsx
    * connectionOptions={{
    *   hosts: {
-   *     domain: 'meet.jit.si',
-   *     muc: 'conference.meet.jit.si',
-   *     focus: 'focus.meet.jit.si',
+   *     domain: '8x8.vc',
+   *     muc: 'conference.8x8.vc',
+   *     focus: 'focus.8x8.vc',
    *   },
    * }}
    * ```

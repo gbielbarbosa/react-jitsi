@@ -1,6 +1,8 @@
 import React from 'react';
 import { useJitsiContext } from '../JitsiContext';
 import { MicMutedSmallIcon, VideoMutedSmallIcon } from '../icons';
+import { AdminControls } from './AdminControls';
+import { ConnectionIndicator } from './ConnectionIndicator';
 import type { Participant } from '../types';
 
 export interface ParticipantListProps {
@@ -94,31 +96,38 @@ export function ParticipantList({
         }
 
         return (
-          <div key={participant.id} className="rj-participant-item">
-            <div
-              className="rj-avatar rj-avatar--sm"
-              style={{ backgroundColor: getAvatarColor(participant.id) }}
-            >
-              {participant.displayName.charAt(0).toUpperCase()}
+          <div key={participant.id} className="rj-participant-item" style={{ flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+              <div
+                className="rj-avatar rj-avatar--sm"
+                style={{ backgroundColor: getAvatarColor(participant.id) }}
+              >
+                {participant.displayName.charAt(0).toUpperCase()}
+              </div>
+
+              <span className="rj-participant-item__name">
+                {participant.displayName}
+                {participant.role === "moderator" && <span className="rj-participant-item__you">(Admin)</span>}
+                {participant.isLocal && <span className="rj-participant-item__you">(You)</span>}
+              </span>
+
+              <div className="rj-participant-item__icons">
+                {participant.audioMuted && (
+                  <div className="rj-status-icon rj-status-icon--muted">
+                    <MicMutedSmallIcon />
+                  </div>
+                )}
+                {participant.videoMuted && (
+                  <div className="rj-status-icon rj-status-icon--muted" style={{ marginRight: '4px' }}>
+                    <VideoMutedSmallIcon />
+                  </div>
+                )}
+                <ConnectionIndicator participant={participant} />
+              </div>
             </div>
 
-            <span className="rj-participant-item__name">
-              {participant.displayName}
-              {participant.isLocal && <span className="rj-participant-item__you">(You)</span>}
-            </span>
-
-            <div className="rj-participant-item__icons">
-              {participant.audioMuted && (
-                <div className="rj-status-icon rj-status-icon--muted">
-                  <MicMutedSmallIcon />
-                </div>
-              )}
-              {participant.videoMuted && (
-                <div className="rj-status-icon rj-status-icon--muted">
-                  <VideoMutedSmallIcon />
-                </div>
-              )}
-            </div>
+            {/* Admin controls for moderators - full width below name */}
+            <AdminControls participantId={participant.id} style={{ width: '100%', marginTop: '4px' }} />
           </div>
         );
       })}

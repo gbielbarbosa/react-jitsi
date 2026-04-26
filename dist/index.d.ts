@@ -1,6 +1,39 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import React$1 from 'react';
 
+interface ParticipantStats {
+    isLocal?: boolean;
+    isScreenShare?: boolean;
+    connectionStatus?: string;
+    bitrate?: number;
+    packetLoss?: number;
+    resolution?: string;
+    frameRate?: number;
+    codec?: string;
+    estimatedBandwidth?: number;
+    connectedTo?: string;
+    audioSsrc?: string;
+    videoSsrc?: string;
+    participantId?: string;
+    remoteAddress?: string;
+    remotePort?: number;
+    localAddress?: string;
+    localPort?: number;
+    transport?: string;
+    servers?: string;
+}
+interface ParticipantStatsPanelProps {
+    stats: ParticipantStats;
+    className?: string;
+    style?: React$1.CSSProperties;
+    /** Custom render function */
+    children?: (stats: ParticipantStats) => React$1.ReactNode;
+}
+/**
+ * Displays detailed connection statistics for a participant.
+ */
+declare function ParticipantStatsPanel({ stats, className, style, children }: ParticipantStatsPanelProps): react_jsx_runtime.JSX.Element;
+
 interface ConnectionOptions {
     hosts: {
         domain: string;
@@ -127,6 +160,7 @@ interface UserInfo {
     email?: string;
     avatarUrl?: string;
 }
+
 interface Participant {
     id: string;
     displayName: string;
@@ -135,6 +169,8 @@ interface Participant {
     audioMuted: boolean;
     videoMuted: boolean;
     audioLevel?: number;
+    connectionStatus?: string;
+    stats?: ParticipantStats;
 }
 interface TrackInfo {
     id: string;
@@ -198,7 +234,7 @@ interface ScreenShareOptions {
     resolution?: number;
 }
 interface JitsiProviderProps {
-    /** Jitsi server domain (e.g. "meet.jit.si" or "8x8.vc") */
+    /** Jitsi server domain (e.g. "8x8.vc") */
     domain: string;
     /** Conference room name (just the room, NOT including AppID/tenant) */
     roomName: string;
@@ -228,7 +264,6 @@ interface JitsiProviderProps {
      *
      * Examples:
      * - `wss://8x8.vc/xmpp-websocket`
-     * - `https://meet.jit.si/http-bind` (BOSH fallback)
      */
     serviceUrl?: string;
     /**
@@ -239,9 +274,9 @@ interface JitsiProviderProps {
      * ```tsx
      * connectionOptions={{
      *   hosts: {
-     *     domain: 'meet.jit.si',
-     *     muc: 'conference.meet.jit.si',
-     *     focus: 'focus.meet.jit.si',
+     *     domain: '8x8.vc',
+     *     muc: 'conference.8x8.vc',
+     *     focus: 'focus.8x8.vc',
      *   },
      * }}
      * ```
@@ -372,11 +407,12 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
  * @example
  * ```tsx
  * import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
+ * import "@gbielbarbosa/react-jitsi/styles.css";
  *
  * function App() {
  *   return (
  *     <JitsiMeeting
- *       domain="meet.jit.si"
+ *       domain="8x8.vc"
  *       roomName="my-test-room"
  *       userInfo={{ displayName: 'Test User' }}
  *       title="Team Standup"
@@ -468,7 +504,7 @@ declare function RemoteVideos({ className, style, renderParticipant, }: RemoteVi
  *
  * @example
  * ```tsx
- * <JitsiProvider domain="meet.jit.si" roomName="my-room">
+ * <JitsiProvider domain="8x8.vc" roomName="my-room">
  *   <AudioTrack />
  *   <LocalVideo />
  *   {/* remote audio will play even without RemoteVideos *\/}
@@ -888,6 +924,20 @@ interface ParticipantListProps {
  */
 declare function ParticipantList({ className, style, includeLocal, renderParticipant, children, }: ParticipantListProps): react_jsx_runtime.JSX.Element;
 
+interface ConnectionIndicatorProps {
+    participant: Participant;
+    stats?: ParticipantStats;
+    className?: string;
+    style?: React$1.CSSProperties;
+    /** Custom render function */
+    children?: (status: string, bars: number, color: string, displayStats: ParticipantStats) => React$1.ReactNode;
+}
+/**
+ * Displays an indicator of the participant's connection status (active, inactive, interrupted).
+ * Shows detailed stats on hover.
+ */
+declare function ConnectionIndicator({ participant, stats, className, style, children }: ConnectionIndicatorProps): react_jsx_runtime.JSX.Element;
+
 interface AdminControlsProps {
     /** The participant to control */
     participantId: string;
@@ -947,4 +997,4 @@ declare const WhiteboardIcon: () => react_jsx_runtime.JSX.Element;
 declare const BackgroundIcon: () => react_jsx_runtime.JSX.Element;
 declare const EmptyRoomIcon: () => react_jsx_runtime.JSX.Element;
 
-export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MuteAllButton, NoiseIcon, type Participant, ParticipantList, PerformanceSettings, PhoneOffIcon, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
+export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };

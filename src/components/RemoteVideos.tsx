@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useJitsiContext } from '../JitsiContext';
 import { MicMutedOverlayIcon } from '../icons';
+import { ConnectionIndicator } from './ConnectionIndicator';
 import type { JitsiRemoteTrack, Participant } from '../types';
 
 export interface RemoteVideosProps {
@@ -132,7 +133,10 @@ function RemoteParticipantTile({
       {screenTrack && (
         <div className="rj-remote-tile">
           <video className="rj-remote-tile__video" ref={screenRef} autoPlay playsInline />
-          <div className="rj-remote-tile__name">📺 {participant.displayName}'s screen</div>
+          <div className="rj-remote-tile__name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📺 {participant.displayName}'s screen</span>
+            <ConnectionIndicator participant={participant} stats={{ isScreenShare: true, participantId: participant.id }} />
+          </div>
         </div>
       )}
 
@@ -151,7 +155,10 @@ function RemoteParticipantTile({
           </div>
         )}
         <audio ref={audioRef} autoPlay />
-        <div className="rj-remote-tile__name">{participant.displayName}</div>
+        <div className="rj-remote-tile__name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>{participant.displayName}</span>
+          <ConnectionIndicator participant={participant} />
+        </div>
         {participant.audioMuted && (
           <div className="rj-remote-tile__mute-icon">
             <MicMutedOverlayIcon />

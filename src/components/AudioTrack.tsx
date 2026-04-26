@@ -10,7 +10,7 @@ import { useJitsiContext } from '../JitsiContext';
  *
  * @example
  * ```tsx
- * <JitsiProvider domain="meet.jit.si" roomName="my-room">
+ * <JitsiProvider domain="8x8.vc" roomName="my-room">
  *   <AudioTrack />
  *   <LocalVideo />
  *   {/* remote audio will play even without RemoteVideos *\/}
