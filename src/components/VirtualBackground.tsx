@@ -9,8 +9,8 @@ export interface VirtualBackgroundProps {
   style?: React.CSSProperties;
   asChild?: boolean;
   children?: React.ReactElement | ((
-    config: VirtualBackgroundConfig,
-    set: (config: VirtualBackgroundConfig) => Promise<void>,
+    config: VirtualBackgroundConfig | null,
+    set: (config: VirtualBackgroundConfig | null) => Promise<void>,
     remove: () => Promise<void>
   ) => React.ReactNode);
 }
@@ -35,7 +35,7 @@ export interface VirtualBackgroundProps {
  */
 export function VirtualBackground({ className, style, asChild, children }: VirtualBackgroundProps) {
   const { virtualBackground, setVirtualBackground, removeVirtualBackground } = useJitsiContext();
-  const isActive = virtualBackground.type !== 'none';
+  const isActive = !!virtualBackground;
   const dataState = isActive ? 'active' : 'off';
   const label = isActive ? 'Remove background' : 'Virtual background';
 

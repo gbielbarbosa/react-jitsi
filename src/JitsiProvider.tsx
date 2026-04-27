@@ -89,7 +89,7 @@ interface JitsiState {
   // Noise suppression
   noiseSuppressionEnabled: boolean;
   // Virtual background
-  virtualBackground: VirtualBackgroundConfig;
+  virtualBackground: VirtualBackgroundConfig | null;
   // Whiteboard
   whiteboardActive: boolean;
   whiteboardData: WhiteboardData | null;
@@ -129,7 +129,7 @@ type JitsiAction =
   // Noise suppression
   | { type: 'SET_NOISE_SUPPRESSION'; enabled: boolean }
   // Virtual background
-  | { type: 'SET_VIRTUAL_BACKGROUND'; config: VirtualBackgroundConfig }
+  | { type: 'SET_VIRTUAL_BACKGROUND'; config: VirtualBackgroundConfig | null }
   // Whiteboard
   | { type: 'SET_WHITEBOARD_ACTIVE'; active: boolean }
   // Polls
@@ -158,7 +158,7 @@ const initialState: JitsiState = {
   isRecording: false,
   recordingSession: null,
   noiseSuppressionEnabled: false,
-  virtualBackground: { type: 'none' },
+  virtualBackground: null,
   whiteboardActive: false,
   whiteboardData: null,
   polls: [],
@@ -303,6 +303,7 @@ export function JitsiProvider({
   onMessageReceived,
   onError,
   onConnectionStatusChanged,
+  virtualBackgroundEffects,
   children,
 }: JitsiProviderProps) {
   const [state, dispatch] = useReducer(jitsiReducer, initialState);
@@ -919,23 +920,18 @@ export function JitsiProvider({
   }, [state.isMirrored]);
 
   // Virtual background
-  const setVirtualBackground = useCallback(async (config: VirtualBackgroundConfig) => {
+  const setVirtualBackground = useCallback(async (config: VirtualBackgroundConfig | null) => {
     const videoTrack = localTracksRef.current.find((t) => t.getType() === 'video' && t.getVideoType?.() !== 'desktop');
     if (!videoTrack) return;
     try {
-      if (config.type === 'none') {
-        await videoTrack.setEffect(undefined);
-        vbEffectRef.current = null;
-      } else if (config.customEffect) {
-        await videoTrack.setEffect(config.customEffect);
-        vbEffectRef.current = config.customEffect;
-      }
+      await videoTrack.setEffect(config?.effect);
+      vbEffectRef.current = config?.effect || null;
       dispatch({ type: 'SET_VIRTUAL_BACKGROUND', config });
     } catch (err) { callbacksRef.current.onError?.(err as Error); }
   }, []);
 
   const removeVirtualBackground = useCallback(async () => {
-    await setVirtualBackground({ type: 'none' });
+    await setVirtualBackground(null);
   }, [setVirtualBackground]);
 
   // Noise suppression
@@ -1117,7 +1113,9 @@ export function JitsiProvider({
     captionsEnabled: state.captionsEnabled, captions: state.captions,
     isRecording: state.isRecording, recordingSession: state.recordingSession,
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
-    virtualBackground: state.virtualBackground, whiteboardActive: state.whiteboardActive,
+    virtualBackground: state.virtualBackground,
+    virtualBackgroundEffects: virtualBackgroundEffects || [],
+    whiteboardActive: state.whiteboardActive,
     whiteboardData: state.whiteboardData, polls: state.polls, activePoll: state.activePoll,
     connection: connectionRef.current, conference: conferenceRef.current,
     toggleAudio, toggleVideo, leave, startScreenShare, stopScreenShare,

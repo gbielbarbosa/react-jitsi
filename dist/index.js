@@ -57,7 +57,7 @@ var initialState = {
   isRecording: false,
   recordingSession: null,
   noiseSuppressionEnabled: false,
-  virtualBackground: { type: "none" },
+  virtualBackground: null,
   whiteboardActive: false,
   whiteboardData: null,
   polls: [],
@@ -195,6 +195,7 @@ function JitsiProvider({
   onMessageReceived,
   onError,
   onConnectionStatusChanged,
+  virtualBackgroundEffects,
   children
 }) {
   const [state, dispatch] = useReducer(jitsiReducer, initialState);
@@ -787,20 +788,15 @@ function JitsiProvider({
     const videoTrack = localTracksRef.current.find((t) => t.getType() === "video" && t.getVideoType?.() !== "desktop");
     if (!videoTrack) return;
     try {
-      if (config.type === "none") {
-        await videoTrack.setEffect(void 0);
-        vbEffectRef.current = null;
-      } else if (config.customEffect) {
-        await videoTrack.setEffect(config.customEffect);
-        vbEffectRef.current = config.customEffect;
-      }
+      await videoTrack.setEffect(config?.effect);
+      vbEffectRef.current = config?.effect || null;
       dispatch({ type: "SET_VIRTUAL_BACKGROUND", config });
     } catch (err) {
       callbacksRef.current.onError?.(err);
     }
   }, []);
   const removeVirtualBackground = useCallback(async () => {
-    await setVirtualBackground({ type: "none" });
+    await setVirtualBackground(null);
   }, [setVirtualBackground]);
   const setNoiseSuppression = useCallback(async (effect) => {
     const audioTrack = localTracksRef.current.find((t) => t.getType() === "audio");
@@ -984,6 +980,7 @@ function JitsiProvider({
     recordingSession: state.recordingSession,
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
     virtualBackground: state.virtualBackground,
+    virtualBackgroundEffects: virtualBackgroundEffects || [],
     whiteboardActive: state.whiteboardActive,
     whiteboardData: state.whiteboardData,
     polls: state.polls,
@@ -2370,6 +2367,46 @@ function ToggleWhiteboard({ className, style, asChild, children }) {
     }
   );
 }
+function VirtualBackgroundSelector({ className, style, children }) {
+  const { virtualBackground, virtualBackgroundEffects, setVirtualBackground } = useJitsiContext();
+  if (typeof children === "function") {
+    return /* @__PURE__ */ jsx(Fragment, { children: children(virtualBackgroundEffects, virtualBackground, setVirtualBackground) });
+  }
+  if (virtualBackgroundEffects.length === 0) return null;
+  return /* @__PURE__ */ jsx("div", { className: `rj-vb-selector ${className || ""}`, style, children: /* @__PURE__ */ jsxs("div", { className: "rj-vb-selector__grid", children: [
+    /* @__PURE__ */ jsxs(
+      "button",
+      {
+        type: "button",
+        className: `rj-vb-item ${!virtualBackground ? "rj-vb-item--active" : ""}`,
+        onClick: () => setVirtualBackground(null),
+        children: [
+          /* @__PURE__ */ jsx("div", { className: "rj-vb-item__preview rj-vb-item__preview--none", children: /* @__PURE__ */ jsxs("svg", { width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
+            /* @__PURE__ */ jsx("line", { x1: "18", y1: "6", x2: "6", y2: "18" }),
+            /* @__PURE__ */ jsx("line", { x1: "6", y1: "6", x2: "18", y2: "18" })
+          ] }) }),
+          /* @__PURE__ */ jsx("span", { className: "rj-vb-item__label", children: "None" })
+        ]
+      }
+    ),
+    virtualBackgroundEffects.map((opt) => {
+      const isSelected = virtualBackground?.type === opt.config.type && (opt.config.type === "image" ? virtualBackground.imageUrl === opt.config.imageUrl : true);
+      return /* @__PURE__ */ jsxs(
+        "button",
+        {
+          type: "button",
+          className: `rj-vb-item ${isSelected ? "rj-vb-item--active" : ""}`,
+          onClick: () => setVirtualBackground(opt.config),
+          children: [
+            /* @__PURE__ */ jsx("div", { className: "rj-vb-item__preview", children: opt.config.imageUrl ? /* @__PURE__ */ jsx("img", { src: opt.config.imageUrl, alt: opt.label }) : opt.config.type === "blur" ? /* @__PURE__ */ jsx("div", { className: "rj-vb-item__preview--blur" }) : /* @__PURE__ */ jsx("div", { className: "rj-vb-item__preview--placeholder" }) }),
+            /* @__PURE__ */ jsx("span", { className: "rj-vb-item__label", children: opt.label })
+          ]
+        },
+        opt.id
+      );
+    })
+  ] }) });
+}
 function ScreenSharePreview() {
   const { localScreenTrack, isScreenSharing } = useJitsiContext();
   const videoRef = useRef(null);
@@ -2476,6 +2513,10 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
             /* @__PURE__ */ jsx(DeviceSelector, { kind: "videoinput", label: "Camera" }),
             /* @__PURE__ */ jsx(ToggleMirror, {}),
             /* @__PURE__ */ jsx(AudioOutputSelector, { label: "Speaker" }),
+            /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px" }, children: [
+              /* @__PURE__ */ jsx("label", { className: "rj-label", style: { marginBottom: "8px", display: "block" }, children: "Background" }),
+              /* @__PURE__ */ jsx(VirtualBackgroundSelector, {})
+            ] }),
             /* @__PURE__ */ jsx("div", { style: { borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px" }, children: /* @__PURE__ */ jsx(PerformanceSettings, { style: { padding: 0, backgroundColor: "transparent" } }) })
           ] })
         ] })
@@ -2627,7 +2668,7 @@ function AudioTrack() {
 }
 function VirtualBackground({ className, style, asChild, children }) {
   const { virtualBackground, setVirtualBackground, removeVirtualBackground } = useJitsiContext();
-  const isActive = virtualBackground.type !== "none";
+  const isActive = !!virtualBackground;
   const dataState = isActive ? "active" : "off";
   const label = isActive ? "Remove background" : "Virtual background";
   if (typeof children === "function") return /* @__PURE__ */ jsx(Fragment, { children: children(virtualBackground, setVirtualBackground, removeVirtualBackground) });
@@ -2759,6 +2800,6 @@ function MuteAllButton({ className, style, mediaType = "audio", asChild, childre
   );
 }
 
-export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, Captions, CaptionsIcon, ChatIcon, ChatInput, ChatMessages, ChatPanel, ConnectionIndicator, ConnectionStatus, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, JitsiMeeting, JitsiProvider, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, ParticipantList, ParticipantStatsPanel, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, PollCreator, PollDisplay, PollIcon, RecordIcon, RecordingIndicator, RemoteVideos, ScreenShareButton, ScreenShareIcon, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, Whiteboard, WhiteboardIcon, useJitsi };
+export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, Captions, CaptionsIcon, ChatIcon, ChatInput, ChatMessages, ChatPanel, ConnectionIndicator, ConnectionStatus, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, JitsiMeeting, JitsiProvider, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, ParticipantList, ParticipantStatsPanel, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, PollCreator, PollDisplay, PollIcon, RecordIcon, RecordingIndicator, RemoteVideos, ScreenShareButton, ScreenShareIcon, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, VirtualBackgroundSelector, Whiteboard, WhiteboardIcon, useJitsi };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

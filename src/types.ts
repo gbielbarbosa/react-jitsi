@@ -273,7 +273,7 @@ export interface Poll {
 // Virtual Background
 // ---------------------------------------------------------------------------
 
-export type VirtualBackgroundType = 'none' | 'blur' | 'image' | 'custom';
+export type VirtualBackgroundType = 'blur' | 'image' | 'custom';
 
 export interface VirtualBackgroundConfig {
   type: VirtualBackgroundType;
@@ -282,7 +282,13 @@ export interface VirtualBackgroundConfig {
   /** Blur intensity 1-25 (when type is 'blur') */
   blurIntensity?: number;
   /** Custom effect instance (when type is 'custom') */
-  customEffect?: TrackEffect;
+  effect: TrackEffect;
+}
+
+export interface VirtualBackgroundEffect {
+  id: string;
+  label: string;
+  config: VirtualBackgroundConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +386,8 @@ export interface JitsiProviderProps {
   onError?: (error: Error) => void;
   /** Called when connection status changes */
   onConnectionStatusChanged?: (status: ConnectionStatus) => void;
+  /** Available virtual background options for the UI to render */
+  virtualBackgroundEffects?: VirtualBackgroundEffect[];
   /** React children */
   children: React.ReactNode;
 }
@@ -425,7 +433,8 @@ export interface JitsiContextValue {
   noiseSuppressionEnabled: boolean;
 
   // Virtual background
-  virtualBackground: VirtualBackgroundConfig;
+  virtualBackground: VirtualBackgroundConfig | null;
+  virtualBackgroundEffects: VirtualBackgroundEffect[];
 
   // Whiteboard
   whiteboardActive: boolean;
@@ -455,7 +464,7 @@ export interface JitsiContextValue {
   toggleMirror: () => void;
 
   // Virtual background
-  setVirtualBackground: (config: VirtualBackgroundConfig) => Promise<void>;
+  setVirtualBackground: (config: VirtualBackgroundConfig | null) => Promise<void>;
   removeVirtualBackground: () => Promise<void>;
 
   // Noise suppression

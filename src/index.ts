@@ -32,6 +32,7 @@ export { ToggleMirror } from './components/ToggleMirror';
 
 // Virtual background & effects
 export { VirtualBackground } from './components/VirtualBackground';
+export { VirtualBackgroundSelector } from './components/VirtualBackgroundSelector';
 export { ToggleNoiseSuppression } from './components/ToggleNoiseSuppression';
 
 // Chat

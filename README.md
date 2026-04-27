@@ -330,7 +330,8 @@ const {
   isRecording,        // boolean
   polls,              // Poll[]
   activePoll,         // Poll | null
-  virtualBackground,  // VirtualBackgroundConfig
+  virtualBackground,  // VirtualBackgroundConfig | null
+  virtualBackgroundEffects, // VirtualBackgroundEffects[]
   noiseSuppressionEnabled, // boolean
   whiteboardActive,   // boolean
   whiteboardData,     // WhiteboardData | null
@@ -435,6 +436,12 @@ const {
 
 ### Whiteboard Integration (e.g., Excalidraw)
 
+First, if you don't already have it, install Excalidraw.
+
+```bash
+npm install @excalidraw/excalidraw
+```
+
 Create a wrapper to integrate the Excalidraw with the Whiteboard component, then pass that wrapper component to the `<JitsiMeeting>` or `<VideoLayout>` using the `whiteboardComponent` property, or render it anywhere in your UI.
 
 ```tsx
@@ -467,6 +474,10 @@ function ExcalidrawWrapper() {
       }}
     </Whiteboard>
   );
+}
+
+function App() {
+  return <JitsiMeeting whiteboardComponent={<ExcalidrawWrapper />} />
 }
 ```
 

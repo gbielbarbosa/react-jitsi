@@ -25,6 +25,7 @@ import { ChatIcon, PollIcon, EmptyRoomIcon, Settings, MoreHorizontal } from '../
 import type { JitsiProviderProps } from '../types';
 import { Popover, PopoverContent, PopoverTrigger } from '@radix-ui/react-popover';
 import { ToggleWhiteboard } from './ToggleWhiteboard';
+import { VirtualBackgroundSelector } from './VirtualBackgroundSelector';
 
 export interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
   /** Meeting title displayed in the header */
@@ -145,6 +146,10 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
                   <DeviceSelector kind="videoinput" label="Camera" />
                   <ToggleMirror />
                   <AudioOutputSelector label="Speaker" />
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
+                    <label className="rj-label" style={{ marginBottom: '8px', display: 'block' }}>Background</label>
+                    <VirtualBackgroundSelector />
+                  </div>
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
                     <PerformanceSettings style={{ padding: 0, backgroundColor: 'transparent' }} />
                   </div>

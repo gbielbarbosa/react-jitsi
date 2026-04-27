@@ -1,9 +1,13 @@
 {
   "name": "@gbielbarbosa/react-jitsi",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A composable React SDK for Jitsi Meet low-level API with full UI customization",
   "license": "MIT",
   "author": "Gabriel Barbosa",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gbielbarbosa/react-jitsi.git"
+  },
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",

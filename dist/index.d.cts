@@ -211,7 +211,7 @@ interface Poll {
     isOpen: boolean;
     timestamp: number;
 }
-type VirtualBackgroundType = 'none' | 'blur' | 'image' | 'custom';
+type VirtualBackgroundType = 'blur' | 'image' | 'custom';
 interface VirtualBackgroundConfig {
     type: VirtualBackgroundType;
     /** URL of the image (when type is 'image') */
@@ -219,7 +219,12 @@ interface VirtualBackgroundConfig {
     /** Blur intensity 1-25 (when type is 'blur') */
     blurIntensity?: number;
     /** Custom effect instance (when type is 'custom') */
-    customEffect?: TrackEffect;
+    effect: TrackEffect;
+}
+interface VirtualBackgroundEffect {
+    id: string;
+    label: string;
+    config: VirtualBackgroundConfig;
 }
 interface WhiteboardData {
     type: string;
@@ -302,6 +307,8 @@ interface JitsiProviderProps {
     onError?: (error: Error) => void;
     /** Called when connection status changes */
     onConnectionStatusChanged?: (status: ConnectionStatus$1) => void;
+    /** Available virtual background options for the UI to render */
+    virtualBackgroundEffects?: VirtualBackgroundEffect[];
     /** React children */
     children: React.ReactNode;
 }
@@ -325,7 +332,8 @@ interface JitsiContextValue {
     isRecording: boolean;
     recordingSession: RecordingSession | null;
     noiseSuppressionEnabled: boolean;
-    virtualBackground: VirtualBackgroundConfig;
+    virtualBackground: VirtualBackgroundConfig | null;
+    virtualBackgroundEffects: VirtualBackgroundEffect[];
     whiteboardActive: boolean;
     whiteboardData: WhiteboardData | null;
     polls: Poll[];
@@ -343,7 +351,7 @@ interface JitsiContextValue {
     switchMicrophone: (deviceId: string) => Promise<void>;
     setAudioOutput: (deviceId: string) => Promise<void>;
     toggleMirror: () => void;
-    setVirtualBackground: (config: VirtualBackgroundConfig) => Promise<void>;
+    setVirtualBackground: (config: VirtualBackgroundConfig | null) => Promise<void>;
     removeVirtualBackground: () => Promise<void>;
     setNoiseSuppression: (effect: TrackEffect | null) => Promise<void>;
     toggleNoiseSuppression: () => Promise<void>;
@@ -371,7 +379,7 @@ interface JitsiContextValue {
     muteAll: (mediaType?: 'audio' | 'video') => void;
 }
 
-declare function JitsiProvider({ domain, roomName, userInfo, token, tenant, serviceUrl: serviceUrlProp, connectionOptions: connectionOptionsProp, configOverwrite, autoJoin, devices, onConferenceJoined, onConferenceLeft, onParticipantJoined, onParticipantLeft, onMessageReceived, onError, onConnectionStatusChanged, children, }: JitsiProviderProps): react_jsx_runtime.JSX.Element;
+declare function JitsiProvider({ domain, roomName, userInfo, token, tenant, serviceUrl: serviceUrlProp, connectionOptions: connectionOptionsProp, configOverwrite, autoJoin, devices, onConferenceJoined, onConferenceLeft, onParticipantJoined, onParticipantLeft, onMessageReceived, onError, onConnectionStatusChanged, virtualBackgroundEffects, children, }: JitsiProviderProps): react_jsx_runtime.JSX.Element;
 
 /**
  * Public hook to access the Jitsi conference state and actions.
@@ -637,7 +645,7 @@ interface VirtualBackgroundProps {
     className?: string;
     style?: React$1.CSSProperties;
     asChild?: boolean;
-    children?: React$1.ReactElement | ((config: VirtualBackgroundConfig, set: (config: VirtualBackgroundConfig) => Promise<void>, remove: () => Promise<void>) => React$1.ReactNode);
+    children?: React$1.ReactElement | ((config: VirtualBackgroundConfig | null, set: (config: VirtualBackgroundConfig | null) => Promise<void>, remove: () => Promise<void>) => React$1.ReactNode);
 }
 /**
  * Virtual background toggle/control.
@@ -658,6 +666,18 @@ interface VirtualBackgroundProps {
  * ```
  */
 declare function VirtualBackground({ className, style, asChild, children }: VirtualBackgroundProps): react_jsx_runtime.JSX.Element;
+
+interface VirtualBackgroundSelectorProps {
+    className?: string;
+    style?: React$1.CSSProperties;
+    /** Component/Render prop for custom item rendering */
+    children?: (effects: VirtualBackgroundEffect[], current: VirtualBackgroundConfig | null, set: (config: VirtualBackgroundConfig | null) => Promise<void>) => React$1.ReactNode;
+}
+/**
+ * A component that renders the registered virtual background options.
+ * It uses the `virtualBackgroundOptions` registered in the `JitsiProvider`.
+ */
+declare function VirtualBackgroundSelector({ className, style, children }: VirtualBackgroundSelectorProps): react_jsx_runtime.JSX.Element | null;
 
 interface ToggleNoiseSuppressionProps {
     className?: string;
@@ -1037,4 +1057,4 @@ declare const MoreHorizontal: () => react_jsx_runtime.JSX.Element;
 declare const MoreVertical: () => react_jsx_runtime.JSX.Element;
 declare const Settings: () => react_jsx_runtime.JSX.Element;
 
-export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
+export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, VirtualBackgroundSelector, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
