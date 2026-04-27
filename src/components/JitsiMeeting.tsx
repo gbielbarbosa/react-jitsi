@@ -82,7 +82,7 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
       {/* Header */}
       <div className="rj-meeting__header">
         <div className="rj-meeting__title">
-          <span>{title || 'Jitsi Meeting'}</span>
+          <span>{title || 'react-jitsi'}</span>
         </div>
         <div className="rj-meeting__header-actions">
           <RecordingIndicator />
@@ -175,7 +175,9 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
               </button>
             </PopoverTrigger>
             <PopoverContent>
-              <ToggleWhiteboard />
+              <div style={{ background: "var(--rj-bg)", marginBottom: "8px", borderRadius: "50%" }}>
+                <ToggleWhiteboard />
+              </div>
             </PopoverContent>
           </Popover>
           <LeaveButton label="Leave" />

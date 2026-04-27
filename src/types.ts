@@ -429,6 +429,7 @@ export interface JitsiContextValue {
 
   // Whiteboard
   whiteboardActive: boolean;
+  whiteboardData: WhiteboardData | null,
 
   // Polls
   polls: Poll[];
@@ -477,6 +478,7 @@ export interface JitsiContextValue {
 
   // Whiteboard
   toggleWhiteboard: () => void;
+  getWhiteboardData: () => WhiteboardData | null;
   sendWhiteboardData: (data: WhiteboardData) => void;
   onWhiteboardData: (handler: (data: WhiteboardData) => void) => () => void;
 

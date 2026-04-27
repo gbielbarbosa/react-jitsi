@@ -92,6 +92,7 @@ interface JitsiState {
   virtualBackground: VirtualBackgroundConfig;
   // Whiteboard
   whiteboardActive: boolean;
+  whiteboardData: WhiteboardData | null;
   // Polls
   polls: Poll[];
   activePoll: Poll | null;
@@ -159,6 +160,7 @@ const initialState: JitsiState = {
   noiseSuppressionEnabled: false,
   virtualBackground: { type: 'none' },
   whiteboardActive: false,
+  whiteboardData: null,
   polls: [],
   activePoll: null,
 };
@@ -314,7 +316,8 @@ export function JitsiProvider({
   remoteTracksRef.current = state.remoteTracks;
   const noiseEffectRef = useRef<TrackEffect | null>(null);
   const vbEffectRef = useRef<TrackEffect | null>(null);
-  const whiteboardHandlersRef = useRef<Set<(data: WhiteboardData) => void>>(new Set());
+  const whiteboardHandlerRef = useRef<(data: WhiteboardData) => void>(null);
+  const whiteboardData = useRef<WhiteboardData>(null);
   const isLeavingRef = useRef(false);
   const isInitializedRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -459,6 +462,9 @@ export function JitsiProvider({
           }
         });
         if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
+
+        if ((conferenceRef.current as any).rtc?._channel?.isOpen?.())
+          conference.broadcastEndpointMessage({ type: 'request-whiteboard' });
         callbacksRef.current.onConferenceJoined?.();
       });
 
@@ -724,11 +730,20 @@ export function JitsiProvider({
           safeDispatch({ type: 'ADD_CAPTION', caption });
         }
 
+        if (payload.type === 'request-whiteboard') {
+          const ids = [conference.myUserId(), ...conference.getParticipants().map(p => p.getId())].sort();
+          if (ids[0] !== conference.myUserId()) return;
+
+          if (state.whiteboardData) conference.broadcastEndpointMessage({ type: "whiteboard-data", data: state.whiteboardData });
+        }
+
         // Whiteboard data
         if (payload.type === 'whiteboard-data') {
           const wd = (payload as { data: WhiteboardData }).data;
           if (wd.senderId === conference.myUserId()) return;
-          whiteboardHandlersRef.current.forEach((h) => h(wd));
+
+          whiteboardHandlerRef.current?.(wd);
+          whiteboardData.current = wd;
         }
         // Poll data
         if (payload.type === 'poll-data') {
@@ -993,24 +1008,29 @@ export function JitsiProvider({
     dispatch({ type: 'SET_WHITEBOARD_ACTIVE', active: !state.whiteboardActive });
   }, [state.whiteboardActive]);
 
+  const getWhiteboardData = useCallback(() => {
+    return whiteboardData.current;
+  }, []);
+
   const sendWhiteboardData = useCallback((data: WhiteboardData) => {
+    whiteboardData.current = data;
     if (!conferenceRef.current) return;
-    const fullData: WhiteboardData = {
-      ...data,
-      senderId: conferenceRef.current.myUserId(),
-      timestamp: Date.now(),
-    };
-    conferenceRef.current.broadcastEndpointMessage({ type: 'whiteboard-data', data: fullData } as unknown as object);
+
+    // TODO: add RTC type declaration
+    if (!(conferenceRef.current as any).rtc?._channel?.isOpen?.()) return;
+    conferenceRef.current.broadcastEndpointMessage({ type: 'whiteboard-data', data });
   }, []);
 
   const onWhiteboardData = useCallback((handler: (data: WhiteboardData) => void) => {
-    whiteboardHandlersRef.current.add(handler);
-    return () => { whiteboardHandlersRef.current.delete(handler); };
+    whiteboardHandlerRef.current = handler;
+    return () => { whiteboardHandlerRef.current = null };
   }, []);
 
   // Polls
   const createPoll = useCallback((question: string, options: string[]) => {
     if (!conferenceRef.current) return;
+    if (!(conferenceRef.current as any).rtc?._channel?.isOpen?.()) return;
+
     const poll: Poll = {
       id: nextPollId(), creatorId: conferenceRef.current.myUserId(),
       creatorName: userInfo?.displayName || 'Me', question,
@@ -1098,14 +1118,14 @@ export function JitsiProvider({
     isRecording: state.isRecording, recordingSession: state.recordingSession,
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
     virtualBackground: state.virtualBackground, whiteboardActive: state.whiteboardActive,
-    polls: state.polls, activePoll: state.activePoll,
+    whiteboardData: state.whiteboardData, polls: state.polls, activePoll: state.activePoll,
     connection: connectionRef.current, conference: conferenceRef.current,
     toggleAudio, toggleVideo, leave, startScreenShare, stopScreenShare,
     setDisplayName, getDevices, switchCamera, switchMicrophone, setAudioOutput, toggleMirror,
     setVirtualBackground, removeVirtualBackground, setNoiseSuppression, toggleNoiseSuppression,
     sendMessage, sendPrivateMessage, clearMessages, markMessagesRead,
     toggleCaptions, clearCaptions, startRecording, stopRecording,
-    toggleWhiteboard, sendWhiteboardData, onWhiteboardData,
+    toggleWhiteboard, getWhiteboardData, sendWhiteboardData, onWhiteboardData,
     createPoll, votePoll, closePoll,
     setVideoQuality, setSenderQuality, setMaxVisibleParticipants,
     kickParticipant, muteParticipant, grantModerator, muteAll,

@@ -7,6 +7,7 @@ import { RemoteParticipantTile } from './RemoteVideos';
 import { VideoControlsOverlay } from './VideoControlsOverlay';
 import type { Participant } from '../types';
 import { PinOverlay } from '../icons';
+import * as HoverCard from '@radix-ui/react-hover-card';
 
 export interface VideoLayoutProps {
   className?: string;
@@ -20,12 +21,71 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
   const { participants, localParticipantId, remoteTracks, whiteboardActive } = useJitsiContext();
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const prevContainerSize = useRef({ width: 0, height: 0 });
 
   // Pinned participants
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
 
   // Object fits mapping
   const [objectFits, setObjectFits] = useState<Record<string, 'cover' | 'contain'>>({});
+
+
+  // Floating Rnd position and size
+  const [rndPosition, setRndPosition] = useState({ x: 0, y: 0 });
+  const [rndSize, setRndSize] = useState({ width: 240, height: 180 });
+
+  // Update initial position once containerSize is known
+  const hasInitializedRndPos = useRef(false);
+  useEffect(() => {
+    if (containerSize.width > 0 && !hasInitializedRndPos.current) {
+      setRndPosition({
+        x: containerSize.width - rndSize.width,
+        y: 0
+      });
+      hasInitializedRndPos.current = true;
+    }
+  }, [containerSize.width, rndSize.width]);
+
+  // Clamp Rnd position when container shrinks or expand
+  useEffect(() => {
+    const { width: oldWidth, height: oldHeight } = prevContainerSize.current;
+    const { width: newWidth, height: newHeight } = containerSize;
+    if (newWidth === 0 || newHeight === 0) return;
+    if (oldWidth === 0) {
+      prevContainerSize.current = { width: newWidth, height: newHeight };
+      return;
+    }
+
+    if (oldWidth !== newWidth || oldHeight !== newHeight) {
+      setRndPosition((prev) => {
+        const oldMaxX = oldWidth - rndSize.width;
+        const oldMaxY = oldHeight - rndSize.height;
+        const newMaxX = newWidth - rndSize.width;
+        const newMaxY = newHeight - rndSize.height;
+        let nextX = prev.x;
+        if (newWidth > oldWidth) {
+          if (prev.x > oldMaxX / 2) {
+            const distFromRight = oldMaxX - prev.x;
+            nextX = newMaxX - distFromRight;
+          }
+        }
+        let nextY = prev.y;
+        if (newHeight > oldHeight) {
+          if (prev.y > oldMaxY / 2) {
+            const distFromBottom = oldMaxY - prev.y;
+            nextY = newMaxY - distFromBottom;
+          }
+        }
+
+        return {
+          x: Math.max(0, Math.min(nextX, newMaxX)),
+          y: Math.max(0, Math.min(nextY, newMaxY)),
+        };
+      });
+
+      prevContainerSize.current = { width: newWidth, height: newHeight };
+    }
+  }, [containerSize, rndSize]);
 
   // Local Video Mode (grid or floating)
   const remoteParticipants = Array.from(participants.values()).filter(p => !p.isLocal);
@@ -127,11 +187,15 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
       {/* Floating Local Video */}
       {localVideoMode === 'floating' && localParticipant && !pinnedIds.has(localParticipant.id) && (
         <Rnd
-          default={{
-            x: containerSize.width - 240 - 16 > 0 ? containerSize.width - 240 - 16 : 16,
-            y: 16,
-            width: 240,
-            height: 180,
+          position={rndPosition}
+          size={rndSize}
+          onDragStop={(_, d) => setRndPosition({ x: d.x, y: d.y })}
+          onResizeStop={(_, __, ref, ___, position) => {
+            setRndSize({
+              width: parseInt(ref.style.width),
+              height: parseInt(ref.style.height),
+            });
+            setRndPosition(position);
           }}
           minWidth={160}
           minHeight={120}
@@ -175,11 +239,19 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
                       <VideoControlsOverlay videoMode={localVideoMode} setVideoMode={setLocalVideoMode} participant={p} isPinned={true} onTogglePin={() => togglePin(p.id)} objectFit={objectFits[p.id] || 'contain'} onToggleFit={() => toggleFit(p.id)} />
                     </LocalVideo>
                   ) : p.id === whiteboardId ? (
-                    <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
-                      {whiteboardComponent}
-                      <div className="rj-remote-tile__pin-icon"><PinOverlay /></div>
-                      <VideoControlsOverlay participant={p} isPinned={true} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
-                    </div>
+                    <HoverCard.Root openDelay={200} closeDelay={300}>
+                      <HoverCard.Trigger asChild>
+                        <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
+                          {whiteboardComponent}
+                          <div className="rj-remote-tile__pin-icon"><PinOverlay /></div>
+                        </div>
+                      </HoverCard.Trigger>
+                      <HoverCard.Portal>
+                        <HoverCard.Content side='left' sideOffset={8}>
+                          <VideoControlsOverlay participant={p} isPinned={true} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
+                        </HoverCard.Content>
+                      </HoverCard.Portal>
+                    </HoverCard.Root>
                   ) : (
                     <RemoteParticipantTile participant={p} tracks={remoteTracks.get(p.id) || []} objectFit={objectFits[p.id] || 'contain'} style={{ width: '100%', height: '100%' }}>
                       <div className="rj-remote-tile__pin-icon">
@@ -203,10 +275,18 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
                       <VideoControlsOverlay videoMode={localVideoMode} setVideoMode={setLocalVideoMode} participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit={objectFits[p.id] || 'cover'} onToggleFit={() => toggleFit(p.id)} />
                     </LocalVideo>
                   ) : p.id === whiteboardId ? (
-                    <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
-                      {whiteboardComponent}
-                      <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
-                    </div>
+                    <HoverCard.Root openDelay={200} closeDelay={300}>
+                      <HoverCard.Trigger asChild>
+                        <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
+                          {whiteboardComponent}
+                        </div>
+                      </HoverCard.Trigger>
+                      <HoverCard.Portal>
+                        <HoverCard.Content side='left' sideOffset={8}>
+                          <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
+                        </HoverCard.Content>
+                      </HoverCard.Portal>
+                    </HoverCard.Root>
                   ) : (
                     <RemoteParticipantTile participant={p} tracks={remoteTracks.get(p.id) || []} objectFit={objectFits[p.id] || 'cover'} style={{ width: '100%', height: '100%' }}>
                       <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit={objectFits[p.id] || 'cover'} onToggleFit={() => toggleFit(p.id)} />
@@ -235,10 +315,18 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
                     <VideoControlsOverlay videoMode={localVideoMode} setVideoMode={setLocalVideoMode} participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit={objectFits[p.id] || 'cover'} onToggleFit={() => toggleFit(p.id)} />
                   </LocalVideo>
                 ) : p.id === whiteboardId ? (
-                  <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
-                    {whiteboardComponent}
-                    <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
-                  </div>
+                  <HoverCard.Root openDelay={200} closeDelay={300}>
+                    <HoverCard.Trigger asChild>
+                      <div className="rj-remote-tile" style={{ width: '100%', height: '100%', backgroundColor: 'var(--rj-card)' }}>
+                        {whiteboardComponent}
+                      </div>
+                    </HoverCard.Trigger>
+                    <HoverCard.Portal>
+                      <HoverCard.Content side='left' sideOffset={8}>
+                        <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit="contain" onToggleFit={() => { }} />
+                      </HoverCard.Content>
+                    </HoverCard.Portal>
+                  </HoverCard.Root>
                 ) : (
                   <RemoteParticipantTile participant={p} tracks={remoteTracks.get(p.id) || []} objectFit={objectFits[p.id] || 'cover'} style={{ width: '100%', height: '100%' }}>
                     <VideoControlsOverlay participant={p} isPinned={false} onTogglePin={() => togglePin(p.id)} objectFit={objectFits[p.id] || 'cover'} onToggleFit={() => toggleFit(p.id)} />

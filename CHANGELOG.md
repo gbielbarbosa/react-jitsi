@@ -5,6 +5,17 @@ All notable changes to `stdnum-php` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), 
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.3.1] - 2026-04-27
+
+### FIXED
+
+- Fixed `<VideoControlsOverlay>` overlay issue on the Whiteboard canvas. If the participant is the fake one created for the whiteboard, it only returns the action buttons. The overlay is rendered using the HoverCard in the VideoLayout on top of the whiteboard tile
+- Fixed an issue with the positioning of the `<LocalVideo>` floating tile when the container is resized
+- Fixed an issue when opening `<Whiteboard>` in a room with only yourself
+- Fixed an issue that occurred when creating a poll in a room with only yourself
+- Fixed an issue where `<Whiteboard>` was not persisting the payload between renders, it now has a handshake to synchronize existing data with new participants
+
 ## [0.3.0] - 2026-04-26
 
 ### ADDED
@@ -25,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### FIXED
 
-- Chat and poll buttons not closing the sidebar on <JitshMeeting>
+- Chat and poll buttons not closing the sidebar on `<JitshMeeting>`
 - Fixed issues with Whiteboard synchronization
 
 ## [0.2.0] - 2026-04-25
@@ -33,8 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ADDED
 
 - The `stats` property has been added to the `Participant` object, containing some connection statistics
-- <ConnectionIndicator> Participant connection status indicator
-- <ParticipantStatsPanel> Participant connection statistics panel
+- `<ConnectionIndicator>` Participant connection status indicator
+- `<ParticipantStatsPanel>` Participant connection statistics panel
 
 ### MODIFIED
 
@@ -51,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ADDED
 
-- **Compound Components** - <JitsiProvider> manages the connection, child components plug in freely
+- **Compound Components** - `<JitsiProvider>` manages the connection, child components plug in freely
 - **30+ Components** - Video, audio, chat, recording, polls, screen share, admin, performance, and more
-- **Pre-built UI** - <JitsiMeeting> component for instant, zero-config meetings
+- **Pre-built UI** - `<JitsiMeeting>` component for instant, zero-config meetings
 - **Full Customization** - Default dark theme, `className`/`style` overrides, render props, or `asChild`

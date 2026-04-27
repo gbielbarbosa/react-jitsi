@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Participant } from '../types';
 import { useJitsiContext } from '../JitsiContext';
 import { AdminControls } from './AdminControls';
@@ -27,7 +26,7 @@ export function VideoControlsOverlay({
   const { localRole } = useJitsiContext();
   const isModerator = localRole === 'moderator';
 
-  return (
+  if (participant.id !== "whiteboard-view") return (
     <div className="rj-video-overlay-controls">
       <div className="rj-video-overlay-actions">
         {
@@ -46,34 +45,41 @@ export function VideoControlsOverlay({
         >
           {isPinned ? <PinOff /> : <Pin />}
         </button>
-        {
-          participant.id !== "whiteboard-view" &&
-          <>
-            <button
-              className="rj-video-btn"
-              onClick={onToggleFit}
-              title={objectFit === 'cover' ? 'Show whole video' : 'Crop to fill'}
-            >
-              {objectFit === 'cover' ? <Fullscreen /> : <FullscreenExit />}
-            </button>
-            {/* If it's a remote participant and local user is moderator, show admin controls */}
-            {!participant.isLocal && isModerator && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className='rj-video-btn'>
-                    <MoreVertical />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent>
-                  <div className="rj-video-overlay-admin">
-                    <AdminControls participantId={participant.id} />
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </>
-        }
+        <button
+          className="rj-video-btn"
+          onClick={onToggleFit}
+          title={objectFit === 'cover' ? 'Show whole video' : 'Crop to fill'}
+        >
+          {objectFit === 'cover' ? <Fullscreen /> : <FullscreenExit />}
+        </button>
+        {/* If it's a remote participant and local user is moderator, show admin controls */}
+        {!participant.isLocal && isModerator && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className='rj-video-btn'>
+                <MoreVertical />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <div className="rj-video-overlay-admin">
+                <AdminControls participantId={participant.id} />
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </div>
   );
+
+  return (
+    <div className='rj-video-overlay-actions'>
+      <button
+        className={`rj-video-btn ${isPinned ? 'rj-video-btn--active' : ''}`}
+        onClick={onTogglePin}
+        title={isPinned ? 'Unpin' : 'Pin'}
+      >
+        {isPinned ? <PinOff /> : <Pin />}
+      </button>
+    </div>
+  )
 }

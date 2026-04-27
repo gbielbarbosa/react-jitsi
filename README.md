@@ -333,6 +333,7 @@ const {
   virtualBackground,  // VirtualBackgroundConfig
   noiseSuppressionEnabled, // boolean
   whiteboardActive,   // boolean
+  whiteboardData,     // WhiteboardData | null
 
   // Raw references
   connection,         // JitsiConnection | null
@@ -372,6 +373,7 @@ const {
 
   // Whiteboard
   toggleWhiteboard,
+  getWhiteboardData,
   sendWhiteboardData,
   onWhiteboardData,   // (handler) => unsubscribe
 
@@ -445,10 +447,11 @@ function ExcalidrawWrapper() {
       isRemoteUpdate.current = true;
       excalidrawAPI?.updateScene({ elements: data.payload as any });
     }}>
-      {(isActive, sendData, toggle) => {
+      {(isActive, getData, sendData, toggle) => {
         if (!isActive) return null;
         return (
           <Excalidraw
+            initialData={{ elements: getData()?.payload as any }}
             excalidrawAPI={(api) => setExcalidrawAPI(api)}
             onChange={(elements) => {
               // Send your new drawings to the Jitsi room.

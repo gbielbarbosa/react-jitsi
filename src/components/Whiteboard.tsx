@@ -15,6 +15,7 @@ export interface WhiteboardProps {
    */
   children?: (
     isActive: boolean,
+    getWhiteboardData: () => WhiteboardData | null,
     sendData: (data: WhiteboardData) => void,
     toggle: () => void
   ) => React.ReactNode;
@@ -34,10 +35,12 @@ export interface WhiteboardProps {
  * 
  *     excalidrawAPI?.updateScene({ elements: data.payload as any });
  *   }}>
- *   {(isActive, sendData, toggle) => {
+ *   {(isActive, getData, sendData, toggle) => {
  *     if (!isActive) return null;
  *     return (
  *       <Excalidraw 
+ *         initialData={{ elements: getData()?.payload as any }}
+ *         excalidrawAPI={(api) => setExcalidrawAPI(api)}
  *         onChange={(elements) => {
  *           // If the change was made remotely, we don't want to send it back.
  *           // This prevent Synchronization Feedback Loop.
@@ -55,7 +58,7 @@ export interface WhiteboardProps {
  * ```
  */
 export function Whiteboard({ className, style, onDataReceived, children }: WhiteboardProps) {
-  const { whiteboardActive, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
+  const { whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
 
   // Register data handler
   useEffect(() => {
@@ -68,7 +71,7 @@ export function Whiteboard({ className, style, onDataReceived, children }: White
     sendWhiteboardData(data);
   }, [sendWhiteboardData]);
 
-  if (children) return <>{children(whiteboardActive, sendData, toggleWhiteboard)}</>;
+  if (children) return <>{children(whiteboardActive, getWhiteboardData, sendData, toggleWhiteboard)}</>;
 
   if (!whiteboardActive) return null;
 

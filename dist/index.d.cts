@@ -327,6 +327,7 @@ interface JitsiContextValue {
     noiseSuppressionEnabled: boolean;
     virtualBackground: VirtualBackgroundConfig;
     whiteboardActive: boolean;
+    whiteboardData: WhiteboardData | null;
     polls: Poll[];
     activePoll: Poll | null;
     connection: JitsiConnection | null;
@@ -355,6 +356,7 @@ interface JitsiContextValue {
     startRecording: (options: RecordingOptions) => Promise<void>;
     stopRecording: () => Promise<void>;
     toggleWhiteboard: () => void;
+    getWhiteboardData: () => WhiteboardData | null;
     sendWhiteboardData: (data: WhiteboardData) => void;
     onWhiteboardData: (handler: (data: WhiteboardData) => void) => () => void;
     createPoll: (question: string, options: string[]) => void;
@@ -788,7 +790,7 @@ interface WhiteboardProps {
     /**
      * Render prop giving full control.
      */
-    children?: (isActive: boolean, sendData: (data: WhiteboardData) => void, toggle: () => void) => React$1.ReactNode;
+    children?: (isActive: boolean, getWhiteboardData: () => WhiteboardData | null, sendData: (data: WhiteboardData) => void, toggle: () => void) => React$1.ReactNode;
 }
 /**
  * Whiteboard component - provides the data synchronization layer via Jitsi data channels.
@@ -804,10 +806,12 @@ interface WhiteboardProps {
  *
  *     excalidrawAPI?.updateScene({ elements: data.payload as any });
  *   }}>
- *   {(isActive, sendData, toggle) => {
+ *   {(isActive, getData, sendData, toggle) => {
  *     if (!isActive) return null;
  *     return (
  *       <Excalidraw
+ *         initialData={{ elements: getData()?.payload as any }}
+ *         excalidrawAPI={(api) => setExcalidrawAPI(api)}
  *         onChange={(elements) => {
  *           // If the change was made remotely, we don't want to send it back.
  *           // This prevent Synchronization Feedback Loop.

@@ -3,7 +3,7 @@
 var React5 = require('react');
 var jsxRuntime = require('react/jsx-runtime');
 var reactRnd = require('react-rnd');
-var HoverCard = require('@radix-ui/react-hover-card');
+var HoverCard2 = require('@radix-ui/react-hover-card');
 var reactPopover = require('@radix-ui/react-popover');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
@@ -27,7 +27,7 @@ function _interopNamespace(e) {
 }
 
 var React5__default = /*#__PURE__*/_interopDefault(React5);
-var HoverCard__namespace = /*#__PURE__*/_interopNamespace(HoverCard);
+var HoverCard2__namespace = /*#__PURE__*/_interopNamespace(HoverCard2);
 
 // src/JitsiProvider.tsx
 var JitsiContext = React5.createContext(null);
@@ -84,6 +84,7 @@ var initialState = {
   noiseSuppressionEnabled: false,
   virtualBackground: { type: "none" },
   whiteboardActive: false,
+  whiteboardData: null,
   polls: [],
   activePoll: null
 };
@@ -230,7 +231,8 @@ function JitsiProvider({
   remoteTracksRef.current = state.remoteTracks;
   const noiseEffectRef = React5.useRef(null);
   const vbEffectRef = React5.useRef(null);
-  const whiteboardHandlersRef = React5.useRef(/* @__PURE__ */ new Set());
+  const whiteboardHandlerRef = React5.useRef(null);
+  const whiteboardData = React5.useRef(null);
   const isLeavingRef = React5.useRef(false);
   const isInitializedRef = React5.useRef(false);
   const isMountedRef = React5.useRef(true);
@@ -381,6 +383,8 @@ function JitsiProvider({
           }
         });
         if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
+        if (conferenceRef.current.rtc?._channel?.isOpen?.())
+          conference.broadcastEndpointMessage({ type: "request-whiteboard" });
         callbacksRef.current.onConferenceJoined?.();
       });
       conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
@@ -612,10 +616,16 @@ function JitsiProvider({
           };
           safeDispatch({ type: "ADD_CAPTION", caption });
         }
+        if (payload.type === "request-whiteboard") {
+          const ids = [conference.myUserId(), ...conference.getParticipants().map((p) => p.getId())].sort();
+          if (ids[0] !== conference.myUserId()) return;
+          if (state.whiteboardData) conference.broadcastEndpointMessage({ type: "whiteboard-data", data: state.whiteboardData });
+        }
         if (payload.type === "whiteboard-data") {
           const wd = payload.data;
           if (wd.senderId === conference.myUserId()) return;
-          whiteboardHandlersRef.current.forEach((h) => h(wd));
+          whiteboardHandlerRef.current?.(wd);
+          whiteboardData.current = wd;
         }
         if (payload.type === "poll-data") {
           const pd = payload;
@@ -894,23 +904,24 @@ function JitsiProvider({
   const toggleWhiteboard = React5.useCallback(() => {
     dispatch({ type: "SET_WHITEBOARD_ACTIVE", active: !state.whiteboardActive });
   }, [state.whiteboardActive]);
+  const getWhiteboardData = React5.useCallback(() => {
+    return whiteboardData.current;
+  }, []);
   const sendWhiteboardData = React5.useCallback((data) => {
+    whiteboardData.current = data;
     if (!conferenceRef.current) return;
-    const fullData = {
-      ...data,
-      senderId: conferenceRef.current.myUserId(),
-      timestamp: Date.now()
-    };
-    conferenceRef.current.broadcastEndpointMessage({ type: "whiteboard-data", data: fullData });
+    if (!conferenceRef.current.rtc?._channel?.isOpen?.()) return;
+    conferenceRef.current.broadcastEndpointMessage({ type: "whiteboard-data", data });
   }, []);
   const onWhiteboardData = React5.useCallback((handler) => {
-    whiteboardHandlersRef.current.add(handler);
+    whiteboardHandlerRef.current = handler;
     return () => {
-      whiteboardHandlersRef.current.delete(handler);
+      whiteboardHandlerRef.current = null;
     };
   }, []);
   const createPoll = React5.useCallback((question, options) => {
     if (!conferenceRef.current) return;
+    if (!conferenceRef.current.rtc?._channel?.isOpen?.()) return;
     const poll = {
       id: nextPollId(),
       creatorId: conferenceRef.current.myUserId(),
@@ -999,6 +1010,7 @@ function JitsiProvider({
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
     virtualBackground: state.virtualBackground,
     whiteboardActive: state.whiteboardActive,
+    whiteboardData: state.whiteboardData,
     polls: state.polls,
     activePoll: state.activePoll,
     connection: connectionRef.current,
@@ -1027,6 +1039,7 @@ function JitsiProvider({
     startRecording,
     stopRecording,
     toggleWhiteboard,
+    getWhiteboardData,
     sendWhiteboardData,
     onWhiteboardData,
     createPoll,
@@ -1147,8 +1160,8 @@ function ConnectionIndicator({ participant, stats, className, style, children })
     ...stats || {}
   };
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(status, bars, color, displayStats) });
-  return /* @__PURE__ */ jsxRuntime.jsxs(HoverCard__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
-    /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsxs(
+  return /* @__PURE__ */ jsxRuntime.jsxs(HoverCard2__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsxs(
       "div",
       {
         className: `rj-connection-indicator ${className || ""}`,
@@ -1160,8 +1173,8 @@ function ConnectionIndicator({ participant, stats, className, style, children })
         ]
       }
     ) }),
-    /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsxs(
-      HoverCard__namespace.Content,
+    /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsxs(
+      HoverCard2__namespace.Content,
       {
         side: "top",
         align: "center",
@@ -1169,7 +1182,7 @@ function ConnectionIndicator({ participant, stats, className, style, children })
         style: { zIndex: 1e3, filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.5))" },
         children: [
           /* @__PURE__ */ jsxRuntime.jsx(ParticipantStatsPanel, { stats: displayStats, style: { minWidth: "220px", marginTop: 0 } }),
-          /* @__PURE__ */ jsxRuntime.jsx(HoverCard__namespace.Arrow, { fill: "var(--rj-card, #1e1e1e)" })
+          /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Arrow, { fill: "var(--rj-card, #1e1e1e)" })
         ]
       }
     ) })
@@ -1463,7 +1476,7 @@ function VideoControlsOverlay({
 }) {
   const { localRole } = useJitsiContext();
   const isModerator = localRole === "moderator";
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-controls", children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-video-overlay-actions", children: [
+  if (participant.id !== "whiteboard-view") return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-controls", children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-video-overlay-actions", children: [
     videoMode && setVideoMode && /* @__PURE__ */ jsxRuntime.jsx(
       "button",
       {
@@ -1481,29 +1494,85 @@ function VideoControlsOverlay({
         children: isPinned ? /* @__PURE__ */ jsxRuntime.jsx(PinOff, {}) : /* @__PURE__ */ jsxRuntime.jsx(Pin, {})
       }
     ),
-    participant.id !== "whiteboard-view" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
-      /* @__PURE__ */ jsxRuntime.jsx(
-        "button",
-        {
-          className: "rj-video-btn",
-          onClick: onToggleFit,
-          title: objectFit === "cover" ? "Show whole video" : "Crop to fill",
-          children: objectFit === "cover" ? /* @__PURE__ */ jsxRuntime.jsx(Fullscreen, {}) : /* @__PURE__ */ jsxRuntime.jsx(FullscreenExit, {})
-        }
-      ),
-      !participant.isLocal && isModerator && /* @__PURE__ */ jsxRuntime.jsxs(reactPopover.Popover, { children: [
-        /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-video-btn", children: /* @__PURE__ */ jsxRuntime.jsx(MoreVertical, {}) }) }),
-        /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-admin", children: /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id }) }) })
-      ] })
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: "rj-video-btn",
+        onClick: onToggleFit,
+        title: objectFit === "cover" ? "Show whole video" : "Crop to fill",
+        children: objectFit === "cover" ? /* @__PURE__ */ jsxRuntime.jsx(Fullscreen, {}) : /* @__PURE__ */ jsxRuntime.jsx(FullscreenExit, {})
+      }
+    ),
+    !participant.isLocal && isModerator && /* @__PURE__ */ jsxRuntime.jsxs(reactPopover.Popover, { children: [
+      /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-video-btn", children: /* @__PURE__ */ jsxRuntime.jsx(MoreVertical, {}) }) }),
+      /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-admin", children: /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id }) }) })
     ] })
   ] }) });
+  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-actions", children: /* @__PURE__ */ jsxRuntime.jsx(
+    "button",
+    {
+      className: `rj-video-btn ${isPinned ? "rj-video-btn--active" : ""}`,
+      onClick: onTogglePin,
+      title: isPinned ? "Unpin" : "Pin",
+      children: isPinned ? /* @__PURE__ */ jsxRuntime.jsx(PinOff, {}) : /* @__PURE__ */ jsxRuntime.jsx(Pin, {})
+    }
+  ) });
 }
 function VideoLayout({ className, style, whiteboardComponent }) {
   const containerRef = React5.useRef(null);
   const { participants, localParticipantId, remoteTracks, whiteboardActive } = useJitsiContext();
   const [containerSize, setContainerSize] = React5.useState({ width: 0, height: 0 });
+  const prevContainerSize = React5.useRef({ width: 0, height: 0 });
   const [pinnedIds, setPinnedIds] = React5.useState(/* @__PURE__ */ new Set());
   const [objectFits, setObjectFits] = React5.useState({});
+  const [rndPosition, setRndPosition] = React5.useState({ x: 0, y: 0 });
+  const [rndSize, setRndSize] = React5.useState({ width: 240, height: 180 });
+  const hasInitializedRndPos = React5.useRef(false);
+  React5.useEffect(() => {
+    if (containerSize.width > 0 && !hasInitializedRndPos.current) {
+      setRndPosition({
+        x: containerSize.width - rndSize.width,
+        y: 0
+      });
+      hasInitializedRndPos.current = true;
+    }
+  }, [containerSize.width, rndSize.width]);
+  React5.useEffect(() => {
+    const { width: oldWidth, height: oldHeight } = prevContainerSize.current;
+    const { width: newWidth, height: newHeight } = containerSize;
+    if (newWidth === 0 || newHeight === 0) return;
+    if (oldWidth === 0) {
+      prevContainerSize.current = { width: newWidth, height: newHeight };
+      return;
+    }
+    if (oldWidth !== newWidth || oldHeight !== newHeight) {
+      setRndPosition((prev) => {
+        const oldMaxX = oldWidth - rndSize.width;
+        const oldMaxY = oldHeight - rndSize.height;
+        const newMaxX = newWidth - rndSize.width;
+        const newMaxY = newHeight - rndSize.height;
+        let nextX = prev.x;
+        if (newWidth > oldWidth) {
+          if (prev.x > oldMaxX / 2) {
+            const distFromRight = oldMaxX - prev.x;
+            nextX = newMaxX - distFromRight;
+          }
+        }
+        let nextY = prev.y;
+        if (newHeight > oldHeight) {
+          if (prev.y > oldMaxY / 2) {
+            const distFromBottom = oldMaxY - prev.y;
+            nextY = newMaxY - distFromBottom;
+          }
+        }
+        return {
+          x: Math.max(0, Math.min(nextX, newMaxX)),
+          y: Math.max(0, Math.min(nextY, newMaxY))
+        };
+      });
+      prevContainerSize.current = { width: newWidth, height: newHeight };
+    }
+  }, [containerSize, rndSize]);
   const remoteParticipants = Array.from(participants.values()).filter((p) => !p.isLocal);
   const hasRemotes = remoteParticipants.length > 0;
   const [localVideoMode, setLocalVideoMode] = React5.useState(
@@ -1585,11 +1654,15 @@ function VideoLayout({ className, style, whiteboardComponent }) {
     localVideoMode === "floating" && localParticipant && !pinnedIds.has(localParticipant.id) && /* @__PURE__ */ jsxRuntime.jsx(
       reactRnd.Rnd,
       {
-        default: {
-          x: containerSize.width - 240 - 16 > 0 ? containerSize.width - 240 - 16 : 16,
-          y: 16,
-          width: 240,
-          height: 180
+        position: rndPosition,
+        size: rndSize,
+        onDragStop: (_, d) => setRndPosition({ x: d.x, y: d.y }),
+        onResizeStop: (_, __, ref, ___, position) => {
+          setRndSize({
+            width: parseInt(ref.style.width),
+            height: parseInt(ref.style.height)
+          });
+          setRndPosition(position);
         },
         minWidth: 160,
         minHeight: 120,
@@ -1621,19 +1694,21 @@ function VideoLayout({ className, style, whiteboardComponent }) {
       }, children: gridItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: gridDimensions.width, height: gridDimensions.height }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsxs(LocalVideo, { objectFit: objectFits[p.id] || "contain", children: [
         /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
         /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "contain", onToggleFit: () => toggleFit(p.id) })
-      ] }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
-        whiteboardComponent,
-        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
-        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
-        } })
+      ] }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs(HoverCard2__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
+          whiteboardComponent,
+          /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) })
+        ] }) }),
+        /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Content, { side: "left", sideOffset: 8, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+        } }) }) })
       ] }) : /* @__PURE__ */ jsxRuntime.jsxs(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "contain", style: { width: "100%", height: "100%" }, children: [
         /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile__pin-icon", children: /* @__PURE__ */ jsxRuntime.jsx(PinOverlay, {}) }),
         /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: true, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "contain", onToggleFit: () => toggleFit(p.id) })
       ] }) }, p.id)) }) }),
-      stripItems.length > 0 && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__spotlight-strip", children: stripItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "100%", aspectRatio: "16/9" }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
-        whiteboardComponent,
-        /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
-        } })
+      stripItems.length > 0 && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__spotlight-strip", children: stripItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: "100%", aspectRatio: "16/9" }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs(HoverCard2__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: whiteboardComponent }) }),
+        /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Content, { side: "left", sideOffset: 8, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+        } }) }) })
       ] }) : /* @__PURE__ */ jsxRuntime.jsx(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "cover", style: { width: "100%", height: "100%" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) }, p.id)) })
     ] }) : /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-layout__grid", children: /* @__PURE__ */ jsxRuntime.jsx("div", { style: {
       display: "flex",
@@ -1643,10 +1718,10 @@ function VideoLayout({ className, style, whiteboardComponent }) {
       gap: 16,
       width: "100%",
       height: "100%"
-    }, children: gridItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: gridDimensions.width, height: gridDimensions.height }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: [
-      whiteboardComponent,
-      /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
-      } })
+    }, children: gridItems.map((p) => /* @__PURE__ */ jsxRuntime.jsx("div", { style: { width: gridDimensions.width, height: gridDimensions.height }, children: p.isLocal ? /* @__PURE__ */ jsxRuntime.jsx(LocalVideo, { objectFit: objectFits[p.id] || "cover", children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { videoMode: localVideoMode, setVideoMode: setLocalVideoMode, participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) : p.id === whiteboardId ? /* @__PURE__ */ jsxRuntime.jsxs(HoverCard2__namespace.Root, { openDelay: 200, closeDelay: 300, children: [
+      /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Trigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-remote-tile", style: { width: "100%", height: "100%", backgroundColor: "var(--rj-card)" }, children: whiteboardComponent }) }),
+      /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Portal, { children: /* @__PURE__ */ jsxRuntime.jsx(HoverCard2__namespace.Content, { side: "left", sideOffset: 8, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: "contain", onToggleFit: () => {
+      } }) }) })
     ] }) : /* @__PURE__ */ jsxRuntime.jsx(RemoteParticipantTile, { participant: p, tracks: remoteTracks.get(p.id) || [], objectFit: objectFits[p.id] || "cover", style: { width: "100%", height: "100%" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoControlsOverlay, { participant: p, isPinned: false, onTogglePin: () => togglePin(p.id), objectFit: objectFits[p.id] || "cover", onToggleFit: () => toggleFit(p.id) }) }) }, p.id)) }) })
   ] });
 }
@@ -2343,7 +2418,7 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
   const [showPollCreator, setShowPollCreator] = React5.useState(false);
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header", children: [
-      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__title", children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "Jitsi Meeting" }) }),
+      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__title", children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "react-jitsi" }) }),
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header-actions", children: [
         /* @__PURE__ */ jsxRuntime.jsx(RecordingIndicator, {}),
         /* @__PURE__ */ jsxRuntime.jsx(ConnectionStatus, {})
@@ -2449,7 +2524,7 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
               children: /* @__PURE__ */ jsxRuntime.jsx(MoreHorizontal, {})
             }
           ) }),
-          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx(ToggleWhiteboard, {}) })
+          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsx("div", { style: { background: "var(--rj-bg)", marginBottom: "8px", borderRadius: "50%" }, children: /* @__PURE__ */ jsxRuntime.jsx(ToggleWhiteboard, {}) }) })
         ] }),
         /* @__PURE__ */ jsxRuntime.jsx(LeaveButton, { label: "Leave" })
       ] }),
@@ -2666,7 +2741,7 @@ function ChatMessages({ className, style, renderMessage, children }) {
   }) });
 }
 function Whiteboard({ className, style, onDataReceived, children }) {
-  const { whiteboardActive, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
+  const { whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
   React5.useEffect(() => {
     if (!onDataReceived) return;
     const unsubscribe = onWhiteboardData(onDataReceived);
@@ -2675,7 +2750,7 @@ function Whiteboard({ className, style, onDataReceived, children }) {
   const sendData = React5.useCallback((data) => {
     sendWhiteboardData(data);
   }, [sendWhiteboardData]);
-  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, sendData, toggleWhiteboard) });
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, getWhiteboardData, sendData, toggleWhiteboard) });
   if (!whiteboardActive) return null;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-panel ${className || ""}`, style: { alignItems: "center", justifyContent: "center", minHeight: "400px", border: "2px dashed rgba(255,255,255,0.15)", ...style }, children: [
     /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "48", height: "48", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round", style: { opacity: 0.4 }, children: [
