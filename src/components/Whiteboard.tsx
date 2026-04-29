@@ -9,7 +9,7 @@ export interface WhiteboardProps {
    * Callback fired when whiteboard data is received from other participants.
    * Use this to feed data into your external whiteboard library (e.g., Excalidraw, tldraw).
    */
-  onDataReceived?: (data: WhiteboardData) => void;
+  onDataReceived?: (data: WhiteboardData | null) => void;
   /**
    * Render prop giving full control.
    */
@@ -58,7 +58,7 @@ export interface WhiteboardProps {
  * ```
  */
 export function Whiteboard({ className, style, onDataReceived, children }: WhiteboardProps) {
-  const { whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
+  const { conferenceStatus, whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
 
   // Register data handler
   useEffect(() => {
@@ -71,6 +71,7 @@ export function Whiteboard({ className, style, onDataReceived, children }: White
     sendWhiteboardData(data);
   }, [sendWhiteboardData]);
 
+  if (conferenceStatus !== "joined") return null;
   if (children) return <>{children(whiteboardActive, getWhiteboardData, sendData, toggleWhiteboard)}</>;
 
   if (!whiteboardActive) return null;

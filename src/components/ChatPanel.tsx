@@ -36,7 +36,6 @@ export function ChatPanel({ className, style, placeholder = 'Type a message...',
 
   return (
     <div className={`rj-chat-panel ${className || ''}`} style={style}>
-      <div className="rj-chat-panel__header">Chat ({messages.length})</div>
       <div className="rj-chat-panel__messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`rj-msg ${msg.isLocal ? 'rj-msg--local' : 'rj-msg--remote'}`}>

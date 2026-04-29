@@ -71,7 +71,7 @@ export function ParticipantList({
   renderParticipant,
   children,
 }: ParticipantListProps) {
-  const { participants } = useJitsiContext();
+  const { conference, participants } = useJitsiContext();
 
   const participantsList = Array.from(participants.values()).filter(
     (p) => includeLocal || !p.isLocal
@@ -90,6 +90,7 @@ export function ParticipantList({
 
   return (
     <div className={`rj-participant-list ${className || ''}`} style={style}>
+      <p style={{ marginBottom: 5 }}>{conference?.getBreakoutRooms()?.isBreakoutRoom() ? conference.room?.subject : conference?.getName()} ({participants.size})</p>
       {participantsList.map((participant) => {
         if (renderParticipant) {
           return <React.Fragment key={participant.id}>{renderParticipant(participant)}</React.Fragment>;

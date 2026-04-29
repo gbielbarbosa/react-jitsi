@@ -233,6 +233,7 @@ For more complex components that do not support `asChild` (such as lists, panels
 | `<RemoteVideos>` | Grid of remote participant videos with render props |
 | `<AudioTrack>` | Invisible component managing remote audio playback |
 | `<VideoLayout>` | Component to manage Remote and Local video layout |
+| `<BreakoutRooms>` | Component to manage Breakout rooms | 
 
 ### Control Components
 
@@ -295,6 +296,7 @@ For more complex components that do not support `asChild` (such as lists, panels
 
 | Component | Customization | Description |
 |---|---|---|
+| `<Timer>` | Render Prop | Stopwatch from the start of the meeting |
 | `<PerformanceSettings>` | Render Prop | Video quality and lastN controls |
 | `<ConnectionStatus>` | Render Prop | Connection status indicator with dot |
 | `<ConnectionIndicator>` | Render Prop | Signal bars indicator (active, inactive, interrupted) |
@@ -313,7 +315,8 @@ The hook provides access to the complete conference state and all actions:
 const {
   // State
   connectionStatus,   // 'disconnected' | 'connecting' | 'connected' | 'failed'
-  conferenceStatus,   // 'none' | 'joining' | 'joined' | 'left' | 'error'
+  conferenceStatus,   // 'none' | 'joining' | 'joined' | 'left' | 'error' | 'switching'
+  conferenceStart,    // number | null
   localTracks,        // JitsiLocalTrack[]
   remoteTracks,       // Map<string, JitsiRemoteTrack[]>
   participants,       // Map<string, Participant>
@@ -333,12 +336,16 @@ const {
   virtualBackground,  // VirtualBackgroundConfig | null
   virtualBackgroundEffects, // VirtualBackgroundEffects[]
   noiseSuppressionEnabled, // boolean
+  noiseSuppressionEffect, // TrackEffect | null
   whiteboardActive,   // boolean
   whiteboardData,     // WhiteboardData | null
 
   // Raw references
   connection,         // JitsiConnection | null
   conference,         // JitsiConference | null
+
+  // BreakoutRoom
+  breakoutRooms,      // JitsiRoom[] | null
 
   // Audio/Video Actions
   toggleAudio,
@@ -393,6 +400,14 @@ const {
   muteParticipant,
   grantModerator,
   muteAll,
+
+  // BreakoutRoom
+  createBreakoutRoom, // (subject) => void
+  joinBreakoutRoom,   // (roomJid) => void
+  leaveBreakoutRoom,
+  renameBreakoutRoom, // (roomJid, subject) => void
+  removeBreakoutRoom, // (roomJid) => void
+  sendToBreakoutRoom  // (participantJid, roomJid) => void
 } = useJitsi();
 ```
 
@@ -491,9 +506,12 @@ function App() {
 | `roomName` | `string` | required | Conference room name |
 | `userInfo` | `{ displayName?, email?, avatarUrl? }` | - | User information |
 | `token` | `string \| null` | `null` | JWT authentication token |
+| `tenant` | `string?` | Tenant \ AppID |
 | `configOverwrite` | `ConferenceOptions` | - | Override conference config |
 | `autoJoin` | `boolean` | `true` | Auto-join on mount |
 | `devices` | `('audio' \| 'video')[]` | `['audio', 'video']` | Devices to request |
+| `virtualBackgroundEffects` | `VirtualBackgroundEffect[]?` | - | Default available background effects |
+| `noiseSuppressionEffect` | `TrackEffect?` | - | Default noise suppression effect |
 | `onConferenceJoined` | `() => void` | - | Called when joined |
 | `onConferenceLeft` | `() => void` | - | Called when left |
 | `onParticipantJoined` | `(p: Participant) => void` | - | Called when someone joins |
@@ -515,10 +533,13 @@ JitsiProvider (Context + State Management)
   └── Event Listeners - Track, participant, chat, recording events
 
 Components (Consumer Layer)
-  ├── Media - LocalVideo, RemoteVideos, AudioTrack, VideoLayout, VideoControlsOverlay
-  ├── Controls - Toggle, LeaveButton, DeviceSelector, ScreenShare
+  ├── Media - LocalVideo, RemoteVideos, AudioTrack, VideoLayout,
+              BreakoutRooms
+  ├── Controls - Toggle, LeaveButton, DeviceSelector, ScreenShare,
+                 VideoControlsOverlay
   ├── Chat - ChatPanel, ChatInput, ChatMessages
-  ├── Status - ConnectionStatus, ConnectionIndicator, ParticipantStatsPanel, ParticipantList, RecordingIndicator
+  ├── Status - ConnectionStatus, ConnectionIndicator, ParticipantStatsPanel,
+               ParticipantList, RecordingIndicator, Timer
   ├── Collaboration - Whiteboard, PollCreator, PollDisplay, Captions
   └── Admin - AdminControls, MuteAllButton
 ```

@@ -20,6 +20,7 @@ export { LocalVideo } from './components/LocalVideo';
 export { RemoteVideos } from './components/RemoteVideos';
 export { VideoLayout } from './components/VideoLayout';
 export { AudioTrack } from './components/AudioTrack';
+export { BreakoutRooms } from './components/BreakoutRooms';
 
 // Control components
 export { ToggleAudio } from './components/ToggleAudio';
@@ -29,6 +30,7 @@ export { ScreenShareButton } from './components/ScreenShareButton';
 export { DeviceSelector } from './components/DeviceSelector';
 export { AudioOutputSelector } from './components/AudioOutputSelector';
 export { ToggleMirror } from './components/ToggleMirror';
+export { VideoControlsOverlay } from './components/VideoControlsOverlay';
 
 // Virtual background & effects
 export { VirtualBackground } from './components/VirtualBackground';
@@ -63,9 +65,11 @@ export { PerformanceSettings } from './components/PerformanceSettings';
 
 // Status components
 export { ConnectionStatus } from './components/ConnectionStatus';
+export { ToggleParticipants } from './components/ToggleParticipants';
 export { ParticipantList } from './components/ParticipantList';
 export { ConnectionIndicator } from './components/ConnectionIndicator';
 export { ParticipantStatsPanel } from './components/ParticipantStatsPanel';
+export { Timer } from "./components/Timer";
 
 // Admin
 export { AdminControls } from './components/AdminControls';

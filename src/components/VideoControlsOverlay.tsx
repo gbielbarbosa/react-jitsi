@@ -23,14 +23,14 @@ export function VideoControlsOverlay({
   objectFit,
   onToggleFit,
 }: VideoControlsOverlayProps) {
-  const { localRole } = useJitsiContext();
+  const { localRole, participants } = useJitsiContext();
   const isModerator = localRole === 'moderator';
 
   if (participant.id !== "whiteboard-view") return (
     <div className="rj-video-overlay-controls">
       <div className="rj-video-overlay-actions">
         {
-          videoMode && setVideoMode &&
+          participants.size > 1 && videoMode && setVideoMode &&
           <button
             className='rj-video-btn'
             onClick={() => setVideoMode(videoMode === "grid" ? "floating" : "grid")}

@@ -5,6 +5,29 @@ All notable changes to `react-jitsi` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), 
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-04-28
+
+### ADDED
+
+- Added `<ToggleParticipants>` component
+- Added `conferenceStart` property to the hook context, as well as the `<Timer>` component for rendering
+- Added support for Breakout Rooms, use the following properties on context hook `breakoutRooms`, `createBreakoutRoom`, `renameBreakoutRoom`, `removeBreakoutRoom`, `sendToBreakoutRoom`, `joinBreakoutRoom`, `leaveBreakoutRoom`
+- Added `<BreakoutRooms>` component to render and manage existing sub-rooms
+- Added `switching` option to `ConferenceStatus` type. This informs the controller that it must exit the current conference and wait for a successful exit before entering the breakout room. (joined -> switching -> left -> joining -> joined)
+
+### MODIFIED
+
+- Small changes on default UI
+- `<ToggleNoiseSuppression>` is no longer a button by default, it's now a checkbox
+- `<JitsiMeeting>` and `<JitsiProvider>` now have the `noiseSuppressionEffect` property to allow setting the default effect
+- The layout now causes the `<LocalVideo>` tile to return to the Grid if the participant is left alone in the room
+- Now `<VideoLayoutOverlay>` makes the button to toggle the local video tile to floating mode hidden if the participant is alone in the room
+
+### FIXED
+
+- Fixed handshake synchronization issues
+- Fixed `whiteboardData` state not reflecting the current data
+
 ## [0.3.2] - 2026-04-27
 
 ### ADDED

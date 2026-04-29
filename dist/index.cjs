@@ -65,6 +65,8 @@ function nextPollId() {
 var initialState = {
   connectionStatus: "disconnected",
   conferenceStatus: "none",
+  conferenceStart: null,
+  breakoutRooms: null,
   localTracks: [],
   remoteTracks: /* @__PURE__ */ new Map(),
   participants: /* @__PURE__ */ new Map(),
@@ -82,6 +84,7 @@ var initialState = {
   isRecording: false,
   recordingSession: null,
   noiseSuppressionEnabled: false,
+  noiseSuppressionEffect: null,
   virtualBackground: null,
   whiteboardActive: false,
   whiteboardData: null,
@@ -94,6 +97,10 @@ function jitsiReducer(state, action) {
       return { ...state, connectionStatus: action.status };
     case "SET_CONFERENCE_STATUS":
       return { ...state, conferenceStatus: action.status };
+    case "SET_CONFERENCE_START":
+      return { ...state, conferenceStart: action.start };
+    case "SET_BREAKOUT_ROOMS":
+      return { ...state, breakoutRooms: action.rooms };
     case "SET_LOCAL_TRACKS":
       return { ...state, localTracks: action.tracks };
     case "ADD_LOCAL_TRACK":
@@ -181,13 +188,15 @@ function jitsiReducer(state, action) {
       return { ...state, isRecording: action.recording, recordingSession: action.session };
     // Noise suppression
     case "SET_NOISE_SUPPRESSION":
-      return { ...state, noiseSuppressionEnabled: action.enabled };
+      return { ...state, noiseSuppressionEnabled: action.enabled, noiseSuppressionEffect: action.effect };
     // Virtual background
     case "SET_VIRTUAL_BACKGROUND":
       return { ...state, virtualBackground: action.config };
     // Whiteboard
     case "SET_WHITEBOARD_ACTIVE":
       return { ...state, whiteboardActive: action.active };
+    case "SET_WHITEBOARD_DATA":
+      return { ...state, whiteboardData: action.data };
     // Polls
     case "ADD_POLL":
       return { ...state, polls: [...state.polls, action.poll] };
@@ -221,16 +230,19 @@ function JitsiProvider({
   onError,
   onConnectionStatusChanged,
   virtualBackgroundEffects,
+  noiseSuppressionEffect,
   children
 }) {
   const [state, dispatch] = React5.useReducer(jitsiReducer, initialState);
+  const [currentRoom, setCurrentRoom] = React5.useState(null);
   const connectionRef = React5.useRef(null);
   const conferenceRef = React5.useRef(null);
+  const confStartRef = React5.useRef(null);
   const localTracksRef = React5.useRef([]);
   const screenTrackRef = React5.useRef(null);
   const remoteTracksRef = React5.useRef(/* @__PURE__ */ new Map());
   remoteTracksRef.current = state.remoteTracks;
-  const noiseEffectRef = React5.useRef(null);
+  const noiseEffectRef = React5.useRef(noiseSuppressionEffect || null);
   const vbEffectRef = React5.useRef(null);
   const whiteboardHandlerRef = React5.useRef(null);
   const whiteboardData = React5.useRef(null);
@@ -310,6 +322,359 @@ function JitsiProvider({
       isMountedRef.current = false;
     };
   }, []);
+  const joinConference = React5.useCallback(() => {
+    if (!isMountedRef.current) return;
+    const connection = connectionRef.current;
+    if (!connection) return;
+    const JitsiMeetJS = getJitsiMeetJS();
+    const roomParts = currentRoom?.split("@");
+    const roomDomain = roomParts?.[roomParts?.length - 1];
+    const roomId = currentRoom?.replace(`@${roomDomain}`, "");
+    const confOptions = {
+      openBridgeChannel: true,
+      // P2P is disabled by default because it only supports one video track
+      // per peer connection. Screen sharing adds a second video track which
+      // requires JVB (Jitsi Videobridge) mode. Users can re-enable P2P via
+      // configOverwrite if they don't need simultaneous camera + screen share.
+      p2p: { enabled: false },
+      customDomain: roomId && roomId !== roomName ? `breakout.${domain}` : void 0,
+      ...configOverwriteRef.current
+    };
+    const roomToJoin = roomId || roomName;
+    const conference = connection.initJitsiConference(roomToJoin, confOptions);
+    conferenceRef.current = conference;
+    safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "joining" });
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
+      if (!isMountedRef.current) return;
+      const myId = conference.myUserId();
+      safeDispatch({ type: "SET_LOCAL_PARTICIPANT_ID", id: myId });
+      safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "joined" });
+      const role = conference.isModerator() ? "moderator" : "participant";
+      safeDispatch({ type: "SET_LOCAL_ROLE", role });
+      const displayName = userInfoRef.current?.displayName || "Me";
+      safeDispatch({
+        type: "ADD_PARTICIPANT",
+        participant: {
+          id: myId,
+          displayName,
+          role,
+          isLocal: true,
+          audioMuted: false,
+          videoMuted: false
+        }
+      });
+      if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
+      if (conference.getParticipants().length === 0 && !confStartRef.current) {
+        const d = Date.now();
+        confStartRef.current = d;
+        safeDispatch({ type: "SET_CONFERENCE_START", start: d });
+      }
+      callbacksRef.current.onConferenceJoined?.();
+    });
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
+      safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "left" });
+      callbacksRef.current.onConferenceLeft?.();
+    });
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_ERROR, (err) => {
+      safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "error" });
+      callbacksRef.current.onError?.(new Error(String(err)));
+    });
+    conference.on(JitsiMeetJS.events.conference.DATA_CHANNEL_OPENED, () => {
+      setTimeout(() => conference.broadcastEndpointMessage({ type: "handshake", participant: { id: conference.myUserId() } }), 500);
+    });
+    conference.on(JitsiMeetJS.events.conference.BREAKOUT_ROOMS_UPDATED, (payload) => {
+      safeDispatch({
+        type: "SET_BREAKOUT_ROOMS",
+        rooms: Object.values(payload.rooms).sort((a, b) => a.isMainRoom || (a?.name || 0) > (b?.name || 0) ? 1 : (a?.name || 0) < (b?.name || 0) ? -1 : 0)
+      });
+    });
+    conference.on(JitsiMeetJS.events.conference.BREAKOUT_ROOMS_MOVE_TO_ROOM, (roomJid) => {
+      joinBreakoutRoom(roomJid);
+    });
+    conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
+      if (isLeavingRef.current) return;
+      if (track.isLocal()) return;
+      const pid = track.getParticipantId();
+      const myId = conference.myUserId();
+      if (pid === myId) return;
+      safeDispatch({ type: "ADD_REMOTE_TRACK", participantId: pid, track });
+      try {
+        const remoteTrack = track;
+        const mediaTrack = remoteTrack["getTrack"] ? remoteTrack.getTrack() : null;
+        if (mediaTrack) {
+          const handleEnded = () => {
+            safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track });
+            mediaTrack.removeEventListener("ended", handleEnded);
+          };
+          mediaTrack.addEventListener("ended", handleEnded);
+        }
+      } catch {
+      }
+    });
+    conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED, (track) => {
+      let pid = track.getParticipantId();
+      const myId = conference.myUserId();
+      if (!pid) {
+        const rt = remoteTracksRef.current;
+        for (const [participantId, tracks] of rt.entries()) {
+          if (tracks.some((t) => t.getId() === track.getId())) {
+            pid = participantId;
+            break;
+          }
+        }
+      }
+      if (pid === myId) return;
+      if (!pid) return;
+      safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track });
+    });
+    conference.on(
+      JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED,
+      (participant, msg) => {
+        if (msg && msg.type === "screen-share-stopped") {
+          const pid = participant.getId();
+          const tracks = remoteTracksRef.current.get(pid) || [];
+          const desktopTracks = tracks.filter((t) => t.getVideoType?.() === "desktop");
+          for (const dt of desktopTracks) {
+            safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track: dt });
+          }
+        }
+      }
+    );
+    conference.on(JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED, (track) => {
+      if (track.isLocal()) {
+        if (screenTrackRef.current && track.getId?.() === screenTrackRef.current.getId?.()) return;
+        safeDispatch({ type: track.getType() === "audio" ? "SET_AUDIO_MUTED" : "SET_VIDEO_MUTED", muted: track.isMuted() });
+      } else {
+        if (track.getVideoType?.() === "desktop") return;
+        safeDispatch({
+          type: "UPDATE_PARTICIPANT",
+          participantId: track.getParticipantId(),
+          changes: track.getType() === "audio" ? { audioMuted: track.isMuted() } : { videoMuted: track.isMuted() }
+        });
+      }
+    });
+    conference.on(JitsiMeetJS.events.conference.USER_JOINED, (id, p) => {
+      const np = { id, displayName: p.getDisplayName() || `Participant ${id.substring(0, 6)}`, role: p.getRole() || "participant", isLocal: false, audioMuted: false, videoMuted: false };
+      safeDispatch({ type: "ADD_PARTICIPANT", participant: np });
+      callbacksRef.current.onParticipantJoined?.(np);
+    });
+    conference.on(JitsiMeetJS.events.conference.USER_LEFT, (id) => {
+      safeDispatch({ type: "CLEAR_REMOTE_PARTICIPANT", participantId: id });
+      callbacksRef.current.onParticipantLeft?.(id);
+    });
+    conference.on(JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED, (id, displayName) => {
+      safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { displayName } });
+    });
+    conference.on(JitsiMeetJS.events.conference.USER_ROLE_CHANGED, (id, role) => {
+      safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { role } });
+      const myId = conference.myUserId();
+      if (id === myId) {
+        safeDispatch({ type: "SET_LOCAL_ROLE", role: role === "moderator" ? "moderator" : "participant" });
+      }
+    });
+    conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id, status) => {
+      safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { connectionStatus: status } });
+    });
+    const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || "cq.local_stats_updated";
+    const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || "cq.remote_stats_updated";
+    conference.on(localStatsEvent, (stats) => {
+      if (!stats || !isMountedRef.current) return;
+      const myId = conference.myUserId();
+      const transport = stats.transport?.[0];
+      let remoteAddress;
+      let remotePort;
+      let localAddress;
+      let localPort;
+      if (transport) {
+        const remoteParts = transport.ip?.split(":") || [];
+        remoteAddress = remoteParts[0];
+        remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : void 0;
+        const localParts = transport.localip?.split(":") || [];
+        localAddress = localParts[0];
+        localPort = localParts[1] ? parseInt(localParts[1], 10) : void 0;
+      }
+      const allParticipantIds = /* @__PURE__ */ new Set([
+        ...Object.keys(stats.resolution || {}),
+        ...Object.keys(stats.framerate || {}),
+        ...Object.keys(stats.codec || {}),
+        myId
+        // Always process local
+      ]);
+      allParticipantIds.forEach((pid) => {
+        const ssrcMapRes = stats.resolution?.[pid];
+        const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] : void 0;
+        const ssrcMapFr = stats.framerate?.[pid];
+        const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] : void 0;
+        const ssrcMapCodec = stats.codec?.[pid];
+        let codecName;
+        let audioSsrc;
+        let videoSsrc;
+        if (ssrcMapCodec) {
+          for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
+            if (codecData.audio) {
+              audioSsrc = ssrc;
+              if (!codecName) codecName = codecData.audio;
+            }
+            if (codecData.video) {
+              videoSsrc = ssrc;
+              codecName = codecData.video;
+            }
+          }
+        }
+        const isLocal = pid === myId;
+        const participantStats = {
+          isLocal,
+          participantId: pid,
+          resolution: resObj ? `${resObj.width}x${resObj.height}` : void 0,
+          frameRate,
+          codec: codecName,
+          audioSsrc,
+          videoSsrc,
+          connectedTo: "Jitsi Videobridge"
+        };
+        if (isLocal) {
+          participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0;
+          participantStats.packetLoss = stats.packetLoss?.total !== void 0 ? stats.packetLoss.total : 0;
+          participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : void 0;
+          participantStats.localAddress = localAddress;
+          participantStats.localPort = localPort;
+          participantStats.remoteAddress = remoteAddress;
+          participantStats.remotePort = remotePort;
+          participantStats.transport = transport?.type;
+          participantStats.servers = stats.serverRegion || "Jitsi Server";
+        }
+        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: pid, changes: { stats: participantStats } });
+      });
+    });
+    conference.on(remoteStatsEvent, (id, stats) => {
+      if (!stats || !isMountedRef.current) return;
+      const parsedRemoteStats = {
+        isLocal: false,
+        participantId: id,
+        bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0,
+        packetLoss: stats.packetLoss?.total || 0,
+        connectedTo: "Jitsi Videobridge"
+      };
+      safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { stats: parsedRemoteStats } });
+    });
+    conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id, text, ts) => {
+      if (id === conference.myUserId()) return;
+      const p = conference.getParticipantById(id);
+      const msg = {
+        id: nextMsgId(),
+        participantId: id,
+        displayName: p?.getDisplayName() || id,
+        text,
+        timestamp: ts || Date.now(),
+        isPrivate: false,
+        isLocal: false
+      };
+      safeDispatch({ type: "ADD_MESSAGE", message: msg });
+      callbacksRef.current.onMessageReceived?.(msg);
+    });
+    conference.on(JitsiMeetJS.events.conference.PRIVATE_MESSAGE_RECEIVED, (id, text, ts) => {
+      const p = conference.getParticipantById(id);
+      const msg = {
+        id: nextMsgId(),
+        participantId: id,
+        displayName: p?.getDisplayName() || id,
+        text,
+        timestamp: ts || Date.now(),
+        isPrivate: true,
+        isLocal: false
+      };
+      safeDispatch({ type: "ADD_MESSAGE", message: msg });
+      callbacksRef.current.onMessageReceived?.(msg);
+    });
+    conference.on(JitsiMeetJS.events.conference.RECORDER_STATE_CHANGED, (status) => {
+      const isOn = status.status === "on" || status.status === "pending";
+      const session = status.id ? {
+        id: status.id,
+        mode: status.mode || "file",
+        status: status.status || "off",
+        error: status.error
+      } : null;
+      if (session?.id) recordingSessionIdRef.current = session.id;
+      safeDispatch({ type: "SET_RECORDING", recording: isOn, session });
+    });
+    conference.on(JitsiMeetJS.events.conference.TRANSCRIPTION_STATUS_CHANGED, (status) => {
+      safeDispatch({ type: "SET_CAPTIONS_ENABLED", enabled: status === "ON" });
+    });
+    conference.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED, (_, payload) => {
+      if (payload.type === "transcription-result" && payload.text) {
+        const caption = {
+          participantId: payload.participant?.id || "",
+          displayName: payload.participant?.name || "",
+          text: payload.text,
+          timestamp: Date.now(),
+          language: payload.language,
+          isFinal: payload.final ?? true
+        };
+        safeDispatch({ type: "ADD_CAPTION", caption });
+      }
+      console.log(payload);
+      if (payload.type === "handshake") {
+        if (payload.participant?.id === conference.myUserId()) return;
+        const ids = [conference.myUserId(), ...conference.getParticipants().map((p) => p.getId())].sort().filter((id) => id !== payload.participant?.id);
+        if (ids[0] !== conference.myUserId() || !confStartRef.current) return;
+        conference.broadcastEndpointMessage({
+          type: "handshake-data",
+          data: {
+            whiteboardData: whiteboardData.current,
+            confStartAt: Date.now() - confStartRef.current
+          }
+        });
+      }
+      if (payload.type === "handshake-data") {
+        const wd = payload.data;
+        whiteboardHandlerRef.current?.(wd.whiteboardData);
+        whiteboardData.current = wd.whiteboardData;
+        safeDispatch({ type: "SET_WHITEBOARD_DATA", data: wd.whiteboardData });
+        const d = Date.now() - wd.confStartAt;
+        confStartRef.current = d;
+        safeDispatch({ type: "SET_CONFERENCE_START", start: d });
+      }
+      if (payload.type === "whiteboard-data") {
+        const wd = payload.data;
+        if (wd.senderId === conference.myUserId()) return;
+        whiteboardHandlerRef.current?.(wd);
+        whiteboardData.current = wd;
+        safeDispatch({ type: "SET_WHITEBOARD_DATA", data: wd });
+      }
+      if (payload.type === "poll-data") {
+        const pd = payload;
+        if (pd.action === "create") {
+          safeDispatch({ type: "ADD_POLL", poll: pd.poll });
+          safeDispatch({ type: "SET_ACTIVE_POLL", poll: pd.poll });
+        } else if (pd.action === "vote" || pd.action === "close") {
+          safeDispatch({ type: "UPDATE_POLL", poll: pd.poll });
+          if (pd.action === "close") {
+            safeDispatch({ type: "SET_ACTIVE_POLL", poll: null });
+          }
+        }
+      }
+    });
+    conference.join();
+    if (localTracksRef.current.length === 0) {
+      JitsiMeetJS.createLocalTracks({ devices: devicesRef.current }).then((tracks) => {
+        if (!isMountedRef.current) {
+          tracks.forEach((t) => t.dispose());
+          return;
+        }
+        localTracksRef.current = tracks;
+        safeDispatch({ type: "SET_LOCAL_TRACKS", tracks });
+        for (const t of tracks) {
+          safeDispatch({ type: t.getType() === "audio" ? "SET_AUDIO_MUTED" : "SET_VIDEO_MUTED", muted: t.isMuted() });
+        }
+        return Promise.all(tracks.map((t) => conference.addTrack(t)));
+      }).catch((err) => {
+        console.error("[react-jitsi] Error creating local tracks:", err);
+        callbacksRef.current.onError?.(err);
+      });
+    } else {
+      localTracksRef.current.forEach((t) => conference.addTrack(t));
+    }
+  }, [roomName, currentRoom]);
   React5.useEffect(() => {
     if (isInitializedRef.current || !autoJoin) return;
     isInitializedRef.current = true;
@@ -349,314 +714,8 @@ function JitsiProvider({
     safeDispatch({ type: "SET_CONNECTION_STATUS", status: "connecting" });
     callbacksRef.current.onConnectionStatusChanged?.("connecting");
     const onConnectionSuccess = () => {
-      if (!isMountedRef.current) return;
       safeDispatch({ type: "SET_CONNECTION_STATUS", status: "connected" });
       callbacksRef.current.onConnectionStatusChanged?.("connected");
-      const confOptions = {
-        openBridgeChannel: true,
-        // P2P is disabled by default because it only supports one video track
-        // per peer connection. Screen sharing adds a second video track which
-        // requires JVB (Jitsi Videobridge) mode. Users can re-enable P2P via
-        // configOverwrite if they don't need simultaneous camera + screen share.
-        p2p: { enabled: false },
-        ...configOverwriteRef.current
-      };
-      const conference = connection.initJitsiConference(roomName, confOptions);
-      conferenceRef.current = conference;
-      safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "joining" });
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
-        if (!isMountedRef.current) return;
-        const myId = conference.myUserId();
-        safeDispatch({ type: "SET_LOCAL_PARTICIPANT_ID", id: myId });
-        safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "joined" });
-        const role = conference.isModerator() ? "moderator" : "participant";
-        safeDispatch({ type: "SET_LOCAL_ROLE", role });
-        const displayName = userInfoRef.current?.displayName || "Me";
-        safeDispatch({
-          type: "ADD_PARTICIPANT",
-          participant: {
-            id: myId,
-            displayName,
-            role,
-            isLocal: true,
-            audioMuted: false,
-            videoMuted: false
-          }
-        });
-        if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
-        if (conferenceRef.current.rtc?._channel?.isOpen?.())
-          conference.broadcastEndpointMessage({ type: "request-whiteboard" });
-        callbacksRef.current.onConferenceJoined?.();
-      });
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
-        safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "left" });
-        callbacksRef.current.onConferenceLeft?.();
-      });
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_ERROR, (err) => {
-        safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "error" });
-        callbacksRef.current.onError?.(new Error(String(err)));
-      });
-      conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
-        if (isLeavingRef.current) return;
-        if (track.isLocal()) return;
-        const pid = track.getParticipantId();
-        const myId = conference.myUserId();
-        if (pid === myId) return;
-        safeDispatch({ type: "ADD_REMOTE_TRACK", participantId: pid, track });
-        try {
-          const remoteTrack = track;
-          const mediaTrack = remoteTrack["getTrack"] ? remoteTrack.getTrack() : null;
-          if (mediaTrack) {
-            const handleEnded = () => {
-              safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track });
-              mediaTrack.removeEventListener("ended", handleEnded);
-            };
-            mediaTrack.addEventListener("ended", handleEnded);
-          }
-        } catch {
-        }
-      });
-      conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED, (track) => {
-        let pid = track.getParticipantId();
-        const myId = conference.myUserId();
-        if (!pid) {
-          const rt = remoteTracksRef.current;
-          for (const [participantId, tracks] of rt.entries()) {
-            if (tracks.some((t2) => t2.getId() === track.getId())) {
-              pid = participantId;
-              break;
-            }
-          }
-        }
-        if (pid === myId) return;
-        if (!pid) return;
-        safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track });
-      });
-      conference.on(
-        JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED,
-        (participant, msg) => {
-          if (msg && msg.type === "screen-share-stopped") {
-            const pid = participant.getId();
-            const tracks = remoteTracksRef.current.get(pid) || [];
-            const desktopTracks = tracks.filter((t2) => t2.getVideoType?.() === "desktop");
-            for (const dt of desktopTracks) {
-              safeDispatch({ type: "REMOVE_REMOTE_TRACK", participantId: pid, track: dt });
-            }
-          }
-        }
-      );
-      conference.on(JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED, (track) => {
-        if (track.isLocal()) {
-          if (screenTrackRef.current && track.getId?.() === screenTrackRef.current.getId?.()) return;
-          safeDispatch({ type: track.getType() === "audio" ? "SET_AUDIO_MUTED" : "SET_VIDEO_MUTED", muted: track.isMuted() });
-        } else {
-          if (track.getVideoType?.() === "desktop") return;
-          safeDispatch({
-            type: "UPDATE_PARTICIPANT",
-            participantId: track.getParticipantId(),
-            changes: track.getType() === "audio" ? { audioMuted: track.isMuted() } : { videoMuted: track.isMuted() }
-          });
-        }
-      });
-      conference.on(JitsiMeetJS.events.conference.USER_JOINED, (id, p) => {
-        const np = { id, displayName: p.getDisplayName() || `Participant ${id.substring(0, 6)}`, role: p.getRole() || "participant", isLocal: false, audioMuted: false, videoMuted: false };
-        safeDispatch({ type: "ADD_PARTICIPANT", participant: np });
-        callbacksRef.current.onParticipantJoined?.(np);
-      });
-      conference.on(JitsiMeetJS.events.conference.USER_LEFT, (id) => {
-        safeDispatch({ type: "CLEAR_REMOTE_PARTICIPANT", participantId: id });
-        callbacksRef.current.onParticipantLeft?.(id);
-      });
-      conference.on(JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED, (id, displayName) => {
-        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { displayName } });
-      });
-      conference.on(JitsiMeetJS.events.conference.USER_ROLE_CHANGED, (id, role) => {
-        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { role } });
-        const myId = conference.myUserId();
-        if (id === myId) {
-          safeDispatch({ type: "SET_LOCAL_ROLE", role: role === "moderator" ? "moderator" : "participant" });
-        }
-      });
-      conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id, status) => {
-        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { connectionStatus: status } });
-      });
-      const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || "cq.local_stats_updated";
-      const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || "cq.remote_stats_updated";
-      conference.on(localStatsEvent, (stats) => {
-        if (!stats || !isMountedRef.current) return;
-        const myId = conference.myUserId();
-        const transport = stats.transport?.[0];
-        let remoteAddress;
-        let remotePort;
-        let localAddress;
-        let localPort;
-        if (transport) {
-          const remoteParts = transport.ip?.split(":") || [];
-          remoteAddress = remoteParts[0];
-          remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : void 0;
-          const localParts = transport.localip?.split(":") || [];
-          localAddress = localParts[0];
-          localPort = localParts[1] ? parseInt(localParts[1], 10) : void 0;
-        }
-        const allParticipantIds = /* @__PURE__ */ new Set([
-          ...Object.keys(stats.resolution || {}),
-          ...Object.keys(stats.framerate || {}),
-          ...Object.keys(stats.codec || {}),
-          myId
-          // Always process local
-        ]);
-        allParticipantIds.forEach((pid) => {
-          const ssrcMapRes = stats.resolution?.[pid];
-          const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] : void 0;
-          const ssrcMapFr = stats.framerate?.[pid];
-          const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] : void 0;
-          const ssrcMapCodec = stats.codec?.[pid];
-          let codecName;
-          let audioSsrc;
-          let videoSsrc;
-          if (ssrcMapCodec) {
-            for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
-              if (codecData.audio) {
-                audioSsrc = ssrc;
-                if (!codecName) codecName = codecData.audio;
-              }
-              if (codecData.video) {
-                videoSsrc = ssrc;
-                codecName = codecData.video;
-              }
-            }
-          }
-          const isLocal = pid === myId;
-          const participantStats = {
-            isLocal,
-            participantId: pid,
-            resolution: resObj ? `${resObj.width}x${resObj.height}` : void 0,
-            frameRate,
-            codec: codecName,
-            audioSsrc,
-            videoSsrc,
-            connectedTo: "Jitsi Videobridge"
-          };
-          if (isLocal) {
-            participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0;
-            participantStats.packetLoss = stats.packetLoss?.total !== void 0 ? stats.packetLoss.total : 0;
-            participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : void 0;
-            participantStats.localAddress = localAddress;
-            participantStats.localPort = localPort;
-            participantStats.remoteAddress = remoteAddress;
-            participantStats.remotePort = remotePort;
-            participantStats.transport = transport?.type;
-            participantStats.servers = stats.serverRegion || "Jitsi Server";
-          }
-          safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: pid, changes: { stats: participantStats } });
-        });
-      });
-      conference.on(remoteStatsEvent, (id, stats) => {
-        if (!stats || !isMountedRef.current) return;
-        const parsedRemoteStats = {
-          isLocal: false,
-          participantId: id,
-          bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : void 0,
-          packetLoss: stats.packetLoss?.total || 0,
-          connectedTo: "Jitsi Videobridge"
-        };
-        safeDispatch({ type: "UPDATE_PARTICIPANT", participantId: id, changes: { stats: parsedRemoteStats } });
-      });
-      conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id, text, ts) => {
-        if (id === conference.myUserId()) return;
-        const p = conference.getParticipantById(id);
-        const msg = {
-          id: nextMsgId(),
-          participantId: id,
-          displayName: p?.getDisplayName() || id,
-          text,
-          timestamp: ts || Date.now(),
-          isPrivate: false,
-          isLocal: false
-        };
-        safeDispatch({ type: "ADD_MESSAGE", message: msg });
-        callbacksRef.current.onMessageReceived?.(msg);
-      });
-      conference.on(JitsiMeetJS.events.conference.PRIVATE_MESSAGE_RECEIVED, (id, text, ts) => {
-        const p = conference.getParticipantById(id);
-        const msg = {
-          id: nextMsgId(),
-          participantId: id,
-          displayName: p?.getDisplayName() || id,
-          text,
-          timestamp: ts || Date.now(),
-          isPrivate: true,
-          isLocal: false
-        };
-        safeDispatch({ type: "ADD_MESSAGE", message: msg });
-        callbacksRef.current.onMessageReceived?.(msg);
-      });
-      conference.on(JitsiMeetJS.events.conference.RECORDER_STATE_CHANGED, (status) => {
-        const isOn = status.status === "on" || status.status === "pending";
-        const session = status.id ? {
-          id: status.id,
-          mode: status.mode || "file",
-          status: status.status || "off",
-          error: status.error
-        } : null;
-        if (session?.id) recordingSessionIdRef.current = session.id;
-        safeDispatch({ type: "SET_RECORDING", recording: isOn, session });
-      });
-      conference.on(JitsiMeetJS.events.conference.TRANSCRIPTION_STATUS_CHANGED, (status) => {
-        safeDispatch({ type: "SET_CAPTIONS_ENABLED", enabled: status === "ON" });
-      });
-      conference.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED, (_, payload) => {
-        if (payload.type === "transcription-result" && payload.text) {
-          const caption = {
-            participantId: payload.participant?.id || "",
-            displayName: payload.participant?.name || "",
-            text: payload.text,
-            timestamp: Date.now(),
-            language: payload.language,
-            isFinal: payload.final ?? true
-          };
-          safeDispatch({ type: "ADD_CAPTION", caption });
-        }
-        if (payload.type === "request-whiteboard") {
-          const ids = [conference.myUserId(), ...conference.getParticipants().map((p) => p.getId())].sort();
-          if (ids[0] !== conference.myUserId()) return;
-          if (state.whiteboardData) conference.broadcastEndpointMessage({ type: "whiteboard-data", data: state.whiteboardData });
-        }
-        if (payload.type === "whiteboard-data") {
-          const wd = payload.data;
-          if (wd.senderId === conference.myUserId()) return;
-          whiteboardHandlerRef.current?.(wd);
-          whiteboardData.current = wd;
-        }
-        if (payload.type === "poll-data") {
-          const pd = payload;
-          if (pd.action === "create") {
-            safeDispatch({ type: "ADD_POLL", poll: pd.poll });
-            safeDispatch({ type: "SET_ACTIVE_POLL", poll: pd.poll });
-          } else if (pd.action === "vote" || pd.action === "close") {
-            safeDispatch({ type: "UPDATE_POLL", poll: pd.poll });
-            if (pd.action === "close") {
-              safeDispatch({ type: "SET_ACTIVE_POLL", poll: null });
-            }
-          }
-        }
-      });
-      conference.join();
-      JitsiMeetJS.createLocalTracks({ devices: devicesRef.current }).then((tracks) => {
-        if (!isMountedRef.current) {
-          tracks.forEach((t2) => t2.dispose());
-          return;
-        }
-        localTracksRef.current = tracks;
-        safeDispatch({ type: "SET_LOCAL_TRACKS", tracks });
-        for (const t2 of tracks) {
-          safeDispatch({ type: t2.getType() === "audio" ? "SET_AUDIO_MUTED" : "SET_VIDEO_MUTED", muted: t2.isMuted() });
-        }
-        return Promise.all(tracks.map((t2) => conference.addTrack(t2)));
-      }).catch((err) => {
-        console.error("[react-jitsi] Error creating local tracks:", err);
-        callbacksRef.current.onError?.(err);
-      });
     };
     const onConnectionFailed = (err) => {
       safeDispatch({ type: "SET_CONNECTION_STATUS", status: "failed" });
@@ -676,7 +735,51 @@ function JitsiProvider({
       isInitializedRef.current = false;
       cleanup();
     };
-  }, [domain, roomName, token, autoJoin, safeDispatch, cleanup]);
+  }, [domain, token, autoJoin, safeDispatch, cleanup]);
+  React5.useEffect(() => {
+    const connection = connectionRef.current;
+    if (state.connectionStatus !== "connected" || !connection || state.conferenceStatus === "joining" || state.conferenceStatus === "joined") return;
+    if (state.conferenceStatus === "switching") {
+      conferenceRef.current?.leave();
+      return;
+    }
+    whiteboardHandlerRef.current?.(null);
+    whiteboardData.current = null;
+    safeDispatch({ type: "SET_WHITEBOARD_DATA", data: null });
+    joinConference();
+  }, [state.connectionStatus, state.conferenceStatus, roomName, currentRoom]);
+  const createBreakoutRoom = React5.useCallback((subject) => {
+    if (!conferenceRef.current) return;
+    let count = 0;
+    let name = subject;
+    while (state.breakoutRooms?.find((room) => room.name === name)) {
+      count++;
+      name = `${subject} #${count}`;
+    }
+    conferenceRef.current.getBreakoutRooms()?.createBreakoutRoom(name);
+  }, [state.breakoutRooms]);
+  const joinBreakoutRoom = React5.useCallback((roomJid) => {
+    if (!conferenceRef.current) return;
+    safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "switching" });
+    setCurrentRoom(roomJid);
+  }, []);
+  const leaveBreakoutRoom = React5.useCallback(() => {
+    if (!conferenceRef.current) return;
+    safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "switching" });
+    setCurrentRoom(null);
+  }, []);
+  const removeBreakoutRoom = React5.useCallback((roomJid) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.removeBreakoutRoom(roomJid);
+  }, []);
+  const renameBreakoutRoom = React5.useCallback((roomJid, subject) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.renameBreakoutRoom(roomJid, subject);
+  }, []);
+  const sendToBreakoutRoom = React5.useCallback((participantId, roomJid) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.sendParticipantToRoom(participantId, roomJid);
+  }, []);
   const toggleAudio = React5.useCallback(async () => {
     const t = localTracksRef.current.find((t2) => t2.getType() === "audio");
     if (!t) return;
@@ -830,20 +933,17 @@ function JitsiProvider({
       if (effect) {
         await audioTrack.setEffect(effect);
         noiseEffectRef.current = effect;
-        dispatch({ type: "SET_NOISE_SUPPRESSION", enabled: true });
+        dispatch({ type: "SET_NOISE_SUPPRESSION", enabled: true, effect });
       } else {
         await audioTrack.setEffect(void 0);
-        noiseEffectRef.current = null;
-        dispatch({ type: "SET_NOISE_SUPPRESSION", enabled: false });
+        dispatch({ type: "SET_NOISE_SUPPRESSION", enabled: false, effect: noiseEffectRef.current });
       }
     } catch (err) {
       callbacksRef.current.onError?.(err);
     }
   }, []);
   const toggleNoiseSuppression = React5.useCallback(async () => {
-    if (noiseEffectRef.current) {
-      await setNoiseSuppression(null);
-    }
+    await setNoiseSuppression(noiseEffectRef.current);
   }, [setNoiseSuppression]);
   const sendMessage = React5.useCallback((text, to) => {
     if (!conferenceRef.current) return;
@@ -901,6 +1001,8 @@ function JitsiProvider({
     dispatch({ type: "SET_WHITEBOARD_ACTIVE", active: !state.whiteboardActive });
   }, [state.whiteboardActive]);
   const getWhiteboardData = React5.useCallback(() => {
+    console.log("Get Data");
+    console.log(whiteboardData.current);
     return whiteboardData.current;
   }, []);
   const sendWhiteboardData = React5.useCallback((data) => {
@@ -987,6 +1089,7 @@ function JitsiProvider({
   const contextValue = {
     connectionStatus: state.connectionStatus,
     conferenceStatus: state.conferenceStatus,
+    conferenceStart: state.conferenceStart,
     localTracks: state.localTracks,
     localScreenTrack: state.localScreenTrack,
     remoteTracks: state.remoteTracks,
@@ -1004,6 +1107,7 @@ function JitsiProvider({
     isRecording: state.isRecording,
     recordingSession: state.recordingSession,
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
+    noiseSuppressionEffect: state.noiseSuppressionEffect,
     virtualBackground: state.virtualBackground,
     virtualBackgroundEffects: virtualBackgroundEffects || [],
     whiteboardActive: state.whiteboardActive,
@@ -1012,6 +1116,7 @@ function JitsiProvider({
     activePoll: state.activePoll,
     connection: connectionRef.current,
     conference: conferenceRef.current,
+    breakoutRooms: state.breakoutRooms,
     toggleAudio,
     toggleVideo,
     leave,
@@ -1048,7 +1153,13 @@ function JitsiProvider({
     kickParticipant,
     muteParticipant,
     grantModerator,
-    muteAll
+    muteAll,
+    createBreakoutRoom,
+    joinBreakoutRoom,
+    leaveBreakoutRoom,
+    removeBreakoutRoom,
+    renameBreakoutRoom,
+    sendToBreakoutRoom
   };
   return /* @__PURE__ */ jsxRuntime.jsx(JitsiContext.Provider, { value: contextValue, children });
 }
@@ -1229,6 +1340,8 @@ var defaultProps = {
   strokeLinecap: "round",
   strokeLinejoin: "round"
 };
+var ProgressIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M325-111.5q-73-31.5-127.5-86t-86-127.5Q80-398 80-480.5t31.5-155q31.5-72.5 86-127t127.5-86Q398-880 480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160q133 0 226.5-93.5T800-480q0-17 11.5-28.5T840-520q17 0 28.5 11.5T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480.5-80Q398-80 325-111.5Z" }) });
+var CloseIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" }) });
 var MicOnIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M19 10v2a7 7 0 0 1-14 0v-2" }),
@@ -1300,6 +1413,12 @@ var CaptionsIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProp
   /* @__PURE__ */ jsxRuntime.jsx("rect", { x: "2", y: "4", width: "20", height: "16", rx: "2" }),
   /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M7 12h2m4 0h4M7 16h10" })
 ] });
+var ParticipantsIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+  /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "9", cy: "7", r: "4" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
+  /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+] });
 var PollIcon = () => /* @__PURE__ */ jsxRuntime.jsxs("svg", { ...defaultProps, children: [
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "18", y1: "20", x2: "18", y2: "10" }),
   /* @__PURE__ */ jsxRuntime.jsx("line", { x1: "12", y1: "20", x2: "12", y2: "4" }),
@@ -1335,16 +1454,21 @@ var EmptyRoomIcon = () => /* @__PURE__ */ jsxRuntime.jsxs(
     ]
   }
 );
-var Pin = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
-var PinOverlay = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "14px", viewBox: "0 -960 960 960", width: "14px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
-var PinOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M680-840v80h-40v327l-80-80v-247H400v87l-87-87-33-33v-47h400ZM480-40l-40-40v-240H240v-80l80-80v-46L56-792l56-56 736 736-58 56-264-264h-6v240l-40 40ZM354-400h92l-44-44-2-2-46 46Zm126-193Zm-78 149Z" }) });
-var Grid = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133ZM200-413h133v-134H200v134Zm213 0h134v-134H413v134Zm214 0h133v-134H627v134ZM200-627h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133Z" }) });
-var GridOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M333-200v-133H200v133h133Zm214 0v-100l-33-33H413v133h134Zm80 0Zm116-133Zm-410-80v-101l-33-33H200v134h133Zm80 0Zm347 0v-134H627v99l35 35h98ZM529-547Zm-329-80Zm347 0v-133H413v98l35 35h99Zm213 0v-133H627v133h133ZM316-760Zm524 525L235-840h525q33 0 56.5 23.5T840-760v525ZM200-120q-33 0-56.5-23.5T120-200v-640l720 720H200Zm619 92L28-820l56-56L876-84l-57 56Z" }) });
-var Fullscreen = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M120-120v-200h80v120h120v80H120Zm520 0v-80h120v-120h80v200H640ZM120-640v-200h200v80H200v120h-80Zm640 0v-120H640v-80h200v200h-80Z" }) });
-var FullscreenExit = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-120v-120H120v-80h200v200h-80Zm400 0v-200h200v80H720v120h-80ZM120-640v-80h120v-120h80v200H120Zm520 0v-200h80v120h120v80H640Z" }) });
-var MoreHorizontal = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" }) });
-var MoreVertical = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z" }) });
-var Settings = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "20", viewBox: "0 -960 960 960", width: "20", fill: "#e3e3e3", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }) });
+var Pin = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
+var PinOverlay = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "14px", viewBox: "0 -960 960 960", width: "14px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z" }) });
+var PinOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M680-840v80h-40v327l-80-80v-247H400v87l-87-87-33-33v-47h400ZM480-40l-40-40v-240H240v-80l80-80v-46L56-792l56-56 736 736-58 56-264-264h-6v240l-40 40ZM354-400h92l-44-44-2-2-46 46Zm126-193Zm-78 149Z" }) });
+var Grid = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133ZM200-413h133v-134H200v134Zm213 0h134v-134H413v134Zm214 0h133v-134H627v134ZM200-627h133v-133H200v133Zm213 0h134v-133H413v133Zm214 0h133v-133H627v133Z" }) });
+var GridOff = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M333-200v-133H200v133h133Zm214 0v-100l-33-33H413v133h134Zm80 0Zm116-133Zm-410-80v-101l-33-33H200v134h133Zm80 0Zm347 0v-134H627v99l35 35h98ZM529-547Zm-329-80Zm347 0v-133H413v98l35 35h99Zm213 0v-133H627v133h133ZM316-760Zm524 525L235-840h525q33 0 56.5 23.5T840-760v525ZM200-120q-33 0-56.5-23.5T120-200v-640l720 720H200Zm619 92L28-820l56-56L876-84l-57 56Z" }) });
+var Fullscreen = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M120-120v-200h80v120h120v80H120Zm520 0v-80h120v-120h80v200H640ZM120-640v-200h200v80H200v120h-80Zm640 0v-120H640v-80h200v200h-80Z" }) });
+var FullscreenExit = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-120v-120H120v-80h200v200h-80Zm400 0v-200h200v80H720v120h-80ZM120-640v-80h120v-120h80v200H120Zm520 0v-200h80v120h120v80H640Z" }) });
+var MoreHorizontal = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z" }) });
+var MoreVertical = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z" }) });
+var Settings = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "20", viewBox: "0 -960 960 960", width: "20", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z" }) });
+var BlockIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M324-111.5Q251-143 197-197t-85.5-127Q80-397 80-480t31.5-156Q143-709 197-763t127-85.5Q397-880 480-880t156 31.5Q709-817 763-763t85.5 127Q880-563 880-480t-31.5 156Q817-251 763-197t-127 85.5Q563-80 480-80t-156-31.5ZM480-160q54 0 104-17.5t92-50.5L228-676q-33 42-50.5 92T160-480q0 134 93 227t227 93Zm252-124q33-42 50.5-92T800-480q0-134-93-227t-227-93q-54 0-104 17.5T284-732l448 448ZM480-480Z" }) });
+var AddModeratorIcon = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M480-80q-139-35-229.5-159.5T160-516v-244l320-120 320 120v227q-19-8-39-14.5t-41-9.5v-147l-240-90-240 90v188q0 47 12.5 94t35 89.5Q310-290 342-254t71 60q11 32 29 61t41 52q-1 0-1.5.5t-1.5.5Zm200 0q-83 0-141.5-58.5T480-280q0-83 58.5-141.5T680-480q83 0 141.5 58.5T880-280q0 83-58.5 141.5T680-80ZM480-494Zm180 334h40v-100h100v-40H700v-100h-40v100H560v40h100v100Z" }) });
+var ChevronRight = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z" }) });
+var CheckMark = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" }) });
+var Pencil = () => /* @__PURE__ */ jsxRuntime.jsx("svg", { xmlns: "http://www.w3.org/2000/svg", height: "24px", viewBox: "0 -960 960 960", width: "24px", fill: "currentColor", children: /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z" }) });
 function RemoteVideos({
   className,
   style,
@@ -1456,10 +1580,10 @@ function AdminControls({ participantId, className, style, children }) {
   };
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participant, actions) });
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-admin-controls ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: "Mute" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: "No Video" }),
-    participant.role !== "moderator" && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: "Promote" }),
-    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: "Kick" })
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteAudio, title: "Mute audio", type: "button", children: /* @__PURE__ */ jsxRuntime.jsx(MicOffIcon, {}) }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--mute", onClick: actions.muteVideo, title: "Mute video", type: "button", children: /* @__PURE__ */ jsxRuntime.jsx(VideoOffIcon, {}) }),
+    participant.role !== "moderator" && /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--promote", onClick: actions.grantModerator, title: "Make moderator", type: "button", children: /* @__PURE__ */ jsxRuntime.jsx(AddModeratorIcon, {}) }),
+    /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-admin-btn rj-admin-btn--kick", onClick: actions.kick, title: "Kick participant", type: "button", children: /* @__PURE__ */ jsxRuntime.jsx(BlockIcon, {}) })
   ] });
 }
 function VideoControlsOverlay({
@@ -1471,10 +1595,10 @@ function VideoControlsOverlay({
   objectFit,
   onToggleFit
 }) {
-  const { localRole } = useJitsiContext();
+  const { localRole, participants } = useJitsiContext();
   const isModerator = localRole === "moderator";
   if (participant.id !== "whiteboard-view") return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-video-overlay-controls", children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-video-overlay-actions", children: [
-    videoMode && setVideoMode && /* @__PURE__ */ jsxRuntime.jsx(
+    participants.size > 1 && videoMode && setVideoMode && /* @__PURE__ */ jsxRuntime.jsx(
       "button",
       {
         className: "rj-video-btn",
@@ -1523,13 +1647,13 @@ function VideoLayout({ className, style, whiteboardComponent }) {
   const [pinnedIds, setPinnedIds] = React5.useState(/* @__PURE__ */ new Set());
   const [objectFits, setObjectFits] = React5.useState({});
   const [rndPosition, setRndPosition] = React5.useState({ x: 0, y: 0 });
-  const [rndSize, setRndSize] = React5.useState({ width: 240, height: 180 });
+  const [rndSize, setRndSize] = React5.useState({ width: 320, height: 220 });
   const hasInitializedRndPos = React5.useRef(false);
   React5.useEffect(() => {
     if (containerSize.width > 0 && !hasInitializedRndPos.current) {
       setRndPosition({
         x: containerSize.width - rndSize.width,
-        y: 0
+        y: containerSize.height - rndSize.height
       });
       hasInitializedRndPos.current = true;
     }
@@ -1579,6 +1703,8 @@ function VideoLayout({ className, style, whiteboardComponent }) {
   React5.useEffect(() => {
     if (!prevHasRemotesRef.current && hasRemotes) {
       setLocalVideoMode("floating");
+    } else {
+      setLocalVideoMode("grid");
     }
     prevHasRemotesRef.current = hasRemotes;
   }, [hasRemotes]);
@@ -2064,11 +2190,6 @@ function ChatPanel({ className, style, placeholder = "Type a message...", childr
   }, [messages.length, markMessagesRead]);
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(messages, sendMessage, unreadCount) });
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-chat-panel ${className || ""}`, style, children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-chat-panel__header", children: [
-      "Chat (",
-      messages.length,
-      ")"
-    ] }),
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-chat-panel__messages", children: [
       messages.map((msg) => /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-msg ${msg.isLocal ? "rj-msg--local" : "rj-msg--remote"}`, children: [
         !msg.isLocal && /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-msg__sender", children: [
@@ -2118,7 +2239,7 @@ function ParticipantList({
   renderParticipant,
   children
 }) {
-  const { participants } = useJitsiContext();
+  const { conference, participants } = useJitsiContext();
   const participantsList = Array.from(participants.values()).filter(
     (p) => includeLocal || !p.isLocal
   );
@@ -2130,34 +2251,42 @@ function ParticipantList({
   if (children) {
     return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(participantsList) });
   }
-  return /* @__PURE__ */ jsxRuntime.jsx("div", { className: `rj-participant-list ${className || ""}`, style, children: participantsList.map((participant) => {
-    if (renderParticipant) {
-      return /* @__PURE__ */ jsxRuntime.jsx(React5__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
-    }
-    return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item", style: { flexWrap: "wrap" }, children: [
-      /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", width: "100%" }, children: [
-        /* @__PURE__ */ jsxRuntime.jsx(
-          "div",
-          {
-            className: "rj-avatar rj-avatar--sm",
-            style: { backgroundColor: getAvatarColor(participant.id) },
-            children: participant.displayName.charAt(0).toUpperCase()
-          }
-        ),
-        /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-participant-item__name", children: [
-          participant.displayName,
-          participant.role === "moderator" && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(Admin)" }),
-          participant.isLocal && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(You)" })
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-participant-list ${className || ""}`, style, children: [
+    /* @__PURE__ */ jsxRuntime.jsxs("p", { style: { marginBottom: 5 }, children: [
+      conference?.getBreakoutRooms()?.isBreakoutRoom() ? conference.room?.subject : conference?.getName(),
+      " (",
+      participants.size,
+      ")"
+    ] }),
+    participantsList.map((participant) => {
+      if (renderParticipant) {
+        return /* @__PURE__ */ jsxRuntime.jsx(React5__default.default.Fragment, { children: renderParticipant(participant) }, participant.id);
+      }
+      return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item", style: { flexWrap: "wrap" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", width: "100%" }, children: [
+          /* @__PURE__ */ jsxRuntime.jsx(
+            "div",
+            {
+              className: "rj-avatar rj-avatar--sm",
+              style: { backgroundColor: getAvatarColor(participant.id) },
+              children: participant.displayName.charAt(0).toUpperCase()
+            }
+          ),
+          /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-participant-item__name", children: [
+            participant.displayName,
+            participant.role === "moderator" && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(Admin)" }),
+            participant.isLocal && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(You)" })
+          ] }),
+          /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item__icons", children: [
+            participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedSmallIcon, {}) }),
+            participant.videoMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", style: { marginRight: "4px" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoMutedSmallIcon, {}) }),
+            /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant })
+          ] })
         ] }),
-        /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-participant-item__icons", children: [
-          participant.audioMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", children: /* @__PURE__ */ jsxRuntime.jsx(MicMutedSmallIcon, {}) }),
-          participant.videoMuted && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-status-icon rj-status-icon--muted", style: { marginRight: "4px" }, children: /* @__PURE__ */ jsxRuntime.jsx(VideoMutedSmallIcon, {}) }),
-          /* @__PURE__ */ jsxRuntime.jsx(ConnectionIndicator, { participant })
-        ] })
-      ] }),
-      /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id, style: { width: "100%", marginTop: "4px" } })
-    ] }, participant.id);
-  }) });
+        /* @__PURE__ */ jsxRuntime.jsx(AdminControls, { participantId: participant.id, style: { width: "100%", marginTop: "4px" } })
+      ] }, participant.id);
+    })
+  ] });
 }
 function Captions({ className, style, maxVisible = 3, children }) {
   const { captions, captionsEnabled } = useJitsiContext();
@@ -2432,6 +2561,190 @@ function VirtualBackgroundSelector({ className, style, children }) {
     })
   ] }) });
 }
+function ToggleParticipants({ className, style, asChild, children }) {
+  const { participants } = useJitsiContext();
+  const [isOpen, setIsOpen] = React5.useState(false);
+  const toggle = React5.useCallback(() => setIsOpen((v) => !v), []);
+  const participantsCount = participants.size;
+  const dataState = isOpen ? "open" : "closed";
+  const label = isOpen ? "Close participants" : "Open participants";
+  if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(isOpen, toggle, participantsCount) });
+  if (asChild && React5__default.default.isValidElement(children)) {
+    return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggle, "data-state": dataState, "aria-label": label, title: label, className, style, children });
+  }
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    "button",
+    {
+      className: `rj-btn ${isOpen ? "rj-btn--accent" : "rj-btn--active"} ${className || ""}`,
+      style: { position: "relative", ...style },
+      onClick: toggle,
+      "data-state": dataState,
+      title: label,
+      "aria-label": label,
+      type: "button",
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsx(ParticipantsIcon, {}),
+        participantsCount > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: participantsCount })
+      ]
+    }
+  );
+}
+function ToggleNoiseSuppression({ className, style, asChild, children }) {
+  const { noiseSuppressionEnabled, noiseSuppressionEffect, setNoiseSuppression, toggleNoiseSuppression } = useJitsiContext();
+  const dataState = noiseSuppressionEnabled ? "active" : "off";
+  const label = noiseSuppressionEnabled ? "Disable noise suppression" : "Enable noise suppression";
+  if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(noiseSuppressionEnabled, setNoiseSuppression) });
+  if (asChild && React5__default.default.isValidElement(children)) {
+    return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleNoiseSuppression, "data-state": dataState, "aria-label": label, title: label, className, style, children });
+  }
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: "5px" }, children: [
+    /* @__PURE__ */ jsxRuntime.jsx("input", { disabled: !noiseSuppressionEffect, id: "rj-toggle-noise-suppression", type: "checkbox", style, "data-state": dataState, title: label, "aria-label": label, checked: noiseSuppressionEnabled, onChange: toggleNoiseSuppression }),
+    /* @__PURE__ */ jsxRuntime.jsx("label", { className: "rj-label", htmlFor: "rj-toggle-noise-suppression", children: "Enable noise suppression" })
+  ] });
+}
+function Timer({ className, style, children }) {
+  const { conferenceStart } = useJitsiContext();
+  const [seconds, setSeconds] = React5.useState(0);
+  React5.useEffect(() => {
+    if (!conferenceStart) return;
+    setSeconds(Math.trunc((Date.now() - conferenceStart) / 1e3));
+    let interval = setInterval(() => {
+      setSeconds((s) => s + 1);
+    }, 1e3);
+    return () => clearInterval(interval);
+  }, [conferenceStart]);
+  const formatTime = (s) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+  if (!conferenceStart) return null;
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(seconds) });
+  return /* @__PURE__ */ jsxRuntime.jsx("span", { className: `rj-meeting-timer ${className || ""}`, style, children: formatTime(seconds) });
+}
+function RoomNameEditor({ room }) {
+  const { participants, renameBreakoutRoom } = useJitsiContext();
+  const [editing, setEditing] = React5.useState(false);
+  const [currentName, setName] = React5.useState();
+  if (editing) return /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: 5, marginBottom: 10 }, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "input",
+      {
+        className: "rj-input",
+        defaultValue: room.name,
+        onChange: (e) => setName(e.currentTarget.value),
+        style: { width: "100%" }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: "rj-btn-sm rj-btn--success",
+        onClick: () => {
+          setEditing(false);
+          renameBreakoutRoom(room.jid, currentName ?? room.name ?? "Room");
+        },
+        children: /* @__PURE__ */ jsxRuntime.jsx(CheckMark, {})
+      }
+    )
+  ] });
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    "button",
+    {
+      className: "rj-btn-sm rj-btn-sm--ghost",
+      style: { display: "flex", gap: 5, marginBottom: 10, background: "transparent" },
+      onClick: () => !room.isMainRoom && setEditing(true),
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsxs("p", { children: [
+          room.name ?? room.id,
+          " (",
+          Object.values(room.participants).filter((p) => !participants.has(p.jid.split("-")[0])).length,
+          ")"
+        ] }),
+        !room.isMainRoom && /* @__PURE__ */ jsxRuntime.jsx(Pencil, {})
+      ]
+    }
+  );
+}
+function BreakoutRooms({ className, style, children }) {
+  const { conference, breakoutRooms, participants, localRole, createBreakoutRoom, renameBreakoutRoom, joinBreakoutRoom, leaveBreakoutRoom, sendToBreakoutRoom, removeBreakoutRoom } = useJitsiContext();
+  if (!conference) return;
+  const currentRoom = conference.room;
+  if (!currentRoom) return;
+  if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(breakoutRooms, createBreakoutRoom, renameBreakoutRoom, joinBreakoutRoom, leaveBreakoutRoom, sendToBreakoutRoom, removeBreakoutRoom) });
+  return /* @__PURE__ */ jsxRuntime.jsxs("div", { className, style, children: [
+    conference.getBreakoutRooms()?.isBreakoutRoom() && /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: "rj-btn-sm rj-btn--muted",
+        onClick: leaveBreakoutRoom,
+        style: { width: "100%", marginTop: 10 },
+        children: "Leave breakout room"
+      }
+    ),
+    breakoutRooms?.map((room) => room.jid !== currentRoom.roomjid && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { marginTop: 10 }, children: [
+      /* @__PURE__ */ jsxRuntime.jsx(RoomNameEditor, { room }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", gap: "5px" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(
+          "button",
+          {
+            className: "rj-btn-sm rj-btn-sm--ghost",
+            onClick: () => joinBreakoutRoom(room.id),
+            style: { width: "100%" },
+            children: "Join"
+          }
+        ),
+        !room.isMainRoom && /* @__PURE__ */ jsxRuntime.jsx(
+          "button",
+          {
+            className: "rj-btn-sm rj-btn--muted",
+            onClick: () => removeBreakoutRoom(room.jid),
+            style: { width: "100%" },
+            children: "Remove"
+          }
+        )
+      ] }),
+      Object.entries(room.participants).map(([jid, participant]) => !participants.get(participant.jid.split("-")[0]) && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-participant-item", style: { flexWrap: "wrap", marginTop: 10 }, children: /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", width: "100%" }, children: [
+        /* @__PURE__ */ jsxRuntime.jsx(
+          "div",
+          {
+            className: "rj-avatar rj-avatar--sm",
+            style: { backgroundColor: "#0000" },
+            children: participant.displayName?.charAt(0).toUpperCase()
+          }
+        ),
+        /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "rj-participant-item__name", children: [
+          participant.displayName,
+          participant.role === "moderator" && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-participant-item__you", children: "(Admin)" })
+        ] }),
+        localRole === "moderator" && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-participant-item__icons", children: /* @__PURE__ */ jsxRuntime.jsxs(reactPopover.Popover, { children: [
+          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntime.jsx("button", { className: "rj-btn-sm", style: { background: "transparent", color: "#ffffff" }, children: /* @__PURE__ */ jsxRuntime.jsx(ChevronRight, {}) }) }),
+          /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverPortal, { children: /* @__PURE__ */ jsxRuntime.jsx(reactPopover.PopoverContent, { children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-panel", children: [
+            /* @__PURE__ */ jsxRuntime.jsx("p", { style: { color: "#ffffff" }, children: "Move to room" }),
+            breakoutRooms.map((mRoom) => mRoom.id !== room.id && /* @__PURE__ */ jsxRuntime.jsx(
+              "button",
+              {
+                className: "rj-btn-sm rj-btn-sm--ghost",
+                onClick: () => sendToBreakoutRoom(participant.jid, mRoom.jid),
+                children: mRoom.name ?? mRoom.id
+              },
+              mRoom.id
+            ))
+          ] }) }) })
+        ] }) })
+      ] }) }, participant.jid))
+    ] }, room.id)),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "button",
+      {
+        className: "rj-btn-sm rj-btn-sm--active",
+        onClick: () => createBreakoutRoom("Room"),
+        style: { width: "100%", marginTop: 10 },
+        children: "Add breakout room"
+      }
+    )
+  ] });
+}
 function ScreenSharePreview() {
   const { localScreenTrack, isScreenSharing } = useJitsiContext();
   const videoRef = React5.useRef(null);
@@ -2454,13 +2767,17 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
   const [activeTab, setActiveTab] = React5.useState("participants");
   const [showPollCreator, setShowPollCreator] = React5.useState(false);
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
-    /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header", children: [
-      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__title", children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "react-jitsi" }) }),
-      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__header-actions", children: [
-        /* @__PURE__ */ jsxRuntime.jsx(RecordingIndicator, {}),
-        /* @__PURE__ */ jsxRuntime.jsx(ConnectionStatus, {})
+    /* @__PURE__ */ jsxRuntime.jsx(ConnectionStatus, { children: (connStatus, confStatus) => confStatus !== "joined" && /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-loading", children: /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-loading__body", children: [
+      (connStatus === "failed" || confStatus === "error") && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-loading__icon", children: /* @__PURE__ */ jsxRuntime.jsx(CloseIcon, {}) }),
+        /* @__PURE__ */ jsxRuntime.jsx("p", { className: "rj-loading__label", children: confStatus === "error" ? "Conference error" : "Connection failed" })
+      ] }),
+      (connStatus === "connecting" || connStatus === "connected") && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-loading__icon rj-animate-spin", children: /* @__PURE__ */ jsxRuntime.jsx(ProgressIcon, {}) }),
+        /* @__PURE__ */ jsxRuntime.jsx("p", { className: "rj-loading__label", children: confStatus === "none" ? "Connecting..." : "Joining..." })
       ] })
-    ] }),
+    ] }) }) }),
+    /* @__PURE__ */ jsxRuntime.jsx(RecordingIndicator, {}),
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__main", children: [
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__video-area", children: [
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__remote-area", children: [
@@ -2509,7 +2826,10 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
           )
         ] }),
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__sidebar-content", children: [
-          activeTab === "participants" && /* @__PURE__ */ jsxRuntime.jsx(ParticipantList, {}),
+          activeTab === "participants" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntime.jsx(ParticipantList, {}),
+            /* @__PURE__ */ jsxRuntime.jsx(BreakoutRooms, {})
+          ] }),
           activeTab === "chat" && /* @__PURE__ */ jsxRuntime.jsx(ChatPanel, { style: { height: "100%", borderRadius: 0, backgroundColor: "transparent" } }),
           activeTab === "polls" && /* @__PURE__ */ jsxRuntime.jsxs("div", { style: { display: "flex", flexDirection: "column", gap: "12px" }, children: [
             !showPollCreator && /* @__PURE__ */ jsxRuntime.jsx(
@@ -2535,6 +2855,7 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
           ] }),
           activeTab === "settings" && /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__settings-group", children: [
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "audioinput", label: "Microphone" }),
+            /* @__PURE__ */ jsxRuntime.jsx(ToggleNoiseSuppression, {}),
             /* @__PURE__ */ jsxRuntime.jsx(DeviceSelector, { kind: "videoinput", label: "Camera" }),
             /* @__PURE__ */ jsxRuntime.jsx(ToggleMirror, {}),
             /* @__PURE__ */ jsxRuntime.jsx(AudioOutputSelector, { label: "Speaker" }),
@@ -2548,7 +2869,11 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar", children: [
-      /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting__toolbar-section" }),
+      /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar-section", children: [
+        /* @__PURE__ */ jsxRuntime.jsx(Timer, {}),
+        /* @__PURE__ */ jsxRuntime.jsx("span", { style: { padding: "0px 5px" }, children: "|" }),
+        /* @__PURE__ */ jsxRuntime.jsx("span", { children: title || "react-jitsi" })
+      ] }),
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar-section", style: { justifyContent: "center" }, children: [
         /* @__PURE__ */ jsxRuntime.jsx(ToggleAudio, {}),
         /* @__PURE__ */ jsxRuntime.jsx(ToggleVideo, {}),
@@ -2570,24 +2895,22 @@ function MeetingUI({ title, showSidebar = false, showSettings = true, whiteboard
         /* @__PURE__ */ jsxRuntime.jsx(LeaveButton, { label: "Leave" })
       ] }),
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "rj-meeting__toolbar-section", style: { justifyContent: "flex-end" }, children: [
-        /* @__PURE__ */ jsxRuntime.jsx(
+        /* @__PURE__ */ jsxRuntime.jsx(ToggleParticipants, { children: (_isOpen, _toggle, participants) => /* @__PURE__ */ jsxRuntime.jsxs(
           "button",
           {
             type: "button",
             className: `rj-btn ${sidebarOpen && activeTab === "participants" ? "rj-btn--accent" : "rj-btn--active"}`,
+            style: { position: "relative" },
             onClick: () => {
               setSidebarOpen((s) => activeTab === "participants" ? !s : true);
               setActiveTab("participants");
             },
-            title: "Toggle participants",
-            children: /* @__PURE__ */ jsxRuntime.jsxs("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", children: [
-              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
-              /* @__PURE__ */ jsxRuntime.jsx("circle", { cx: "9", cy: "7", r: "4" }),
-              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
-              /* @__PURE__ */ jsxRuntime.jsx("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
-            ] })
+            children: [
+              /* @__PURE__ */ jsxRuntime.jsx(ParticipantsIcon, {}),
+              participants > 0 && /* @__PURE__ */ jsxRuntime.jsx("span", { className: "rj-badge rj-badge--accent", children: participants })
+            ]
           }
-        ),
+        ) }),
         /* @__PURE__ */ jsxRuntime.jsx(ToggleChat, { children: (_isOpen, _toggle, unread) => /* @__PURE__ */ jsxRuntime.jsxs(
           "button",
           {
@@ -2646,6 +2969,7 @@ function JitsiMeeting({
   showSidebar = false,
   showSettings = true,
   whiteboardComponent,
+  noiseSuppressionEffect,
   ...providerProps
 }) {
   return /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rj-meeting", style: { height }, children: /* @__PURE__ */ jsxRuntime.jsx(JitsiProvider, { ...providerProps, children: /* @__PURE__ */ jsxRuntime.jsx(MeetingUI, { title, showSidebar, showSettings, whiteboardComponent }) }) });
@@ -2717,28 +3041,6 @@ function VirtualBackground({ className, style, asChild, children }) {
     }
   );
 }
-function ToggleNoiseSuppression({ className, style, asChild, children }) {
-  const { noiseSuppressionEnabled, setNoiseSuppression, toggleNoiseSuppression } = useJitsiContext();
-  const dataState = noiseSuppressionEnabled ? "active" : "off";
-  const label = noiseSuppressionEnabled ? "Disable noise suppression" : "Enable noise suppression";
-  if (typeof children === "function") return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(noiseSuppressionEnabled, setNoiseSuppression) });
-  if (asChild && React5__default.default.isValidElement(children)) {
-    return /* @__PURE__ */ jsxRuntime.jsx(Slot, { onClick: toggleNoiseSuppression, "data-state": dataState, "aria-label": label, title: label, className, style, children });
-  }
-  return /* @__PURE__ */ jsxRuntime.jsx(
-    "button",
-    {
-      className: `rj-btn ${noiseSuppressionEnabled ? "rj-btn--success" : "rj-btn--active"} ${className || ""}`,
-      style,
-      onClick: toggleNoiseSuppression,
-      "data-state": dataState,
-      title: label,
-      "aria-label": label,
-      type: "button",
-      children: /* @__PURE__ */ jsxRuntime.jsx(NoiseIcon, {})
-    }
-  );
-}
 function ChatInput({ className, style, placeholder = "Type a message...", privateTo, children }) {
   const { sendMessage } = useJitsiContext();
   const [text, setText] = React5.useState("");
@@ -2782,7 +3084,7 @@ function ChatMessages({ className, style, renderMessage, children }) {
   }) });
 }
 function Whiteboard({ className, style, onDataReceived, children }) {
-  const { whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
+  const { conferenceStatus, whiteboardActive, getWhiteboardData, toggleWhiteboard, sendWhiteboardData, onWhiteboardData } = useJitsiContext();
   React5.useEffect(() => {
     if (!onDataReceived) return;
     const unsubscribe = onWhiteboardData(onDataReceived);
@@ -2791,6 +3093,7 @@ function Whiteboard({ className, style, onDataReceived, children }) {
   const sendData = React5.useCallback((data) => {
     sendWhiteboardData(data);
   }, [sendWhiteboardData]);
+  if (conferenceStatus !== "joined") return null;
   if (children) return /* @__PURE__ */ jsxRuntime.jsx(jsxRuntime.Fragment, { children: children(whiteboardActive, getWhiteboardData, sendData, toggleWhiteboard) });
   if (!whiteboardActive) return null;
   return /* @__PURE__ */ jsxRuntime.jsxs("div", { className: `rj-panel ${className || ""}`, style: { alignItems: "center", justifyContent: "center", minHeight: "400px", border: "2px dashed rgba(255,255,255,0.15)", ...style }, children: [
@@ -2825,16 +3128,22 @@ function MuteAllButton({ className, style, mediaType = "audio", asChild, childre
   );
 }
 
+exports.AddModeratorIcon = AddModeratorIcon;
 exports.AdminControls = AdminControls;
 exports.AudioOutputSelector = AudioOutputSelector;
 exports.AudioTrack = AudioTrack;
 exports.BackgroundIcon = BackgroundIcon;
+exports.BlockIcon = BlockIcon;
+exports.BreakoutRooms = BreakoutRooms;
 exports.Captions = Captions;
 exports.CaptionsIcon = CaptionsIcon;
 exports.ChatIcon = ChatIcon;
 exports.ChatInput = ChatInput;
 exports.ChatMessages = ChatMessages;
 exports.ChatPanel = ChatPanel;
+exports.CheckMark = CheckMark;
+exports.ChevronRight = ChevronRight;
+exports.CloseIcon = CloseIcon;
 exports.ConnectionIndicator = ConnectionIndicator;
 exports.ConnectionStatus = ConnectionStatus;
 exports.DeviceSelector = DeviceSelector;
@@ -2858,6 +3167,8 @@ exports.MuteAllButton = MuteAllButton;
 exports.NoiseIcon = NoiseIcon;
 exports.ParticipantList = ParticipantList;
 exports.ParticipantStatsPanel = ParticipantStatsPanel;
+exports.ParticipantsIcon = ParticipantsIcon;
+exports.Pencil = Pencil;
 exports.PerformanceSettings = PerformanceSettings;
 exports.PhoneOffIcon = PhoneOffIcon;
 exports.Pin = Pin;
@@ -2866,6 +3177,7 @@ exports.PinOverlay = PinOverlay;
 exports.PollCreator = PollCreator;
 exports.PollDisplay = PollDisplay;
 exports.PollIcon = PollIcon;
+exports.ProgressIcon = ProgressIcon;
 exports.RecordIcon = RecordIcon;
 exports.RecordingIndicator = RecordingIndicator;
 exports.RemoteVideos = RemoteVideos;
@@ -2875,15 +3187,18 @@ exports.Settings = Settings;
 exports.Slot = Slot;
 exports.StopRecordIcon = StopRecordIcon;
 exports.StopShareIcon = StopShareIcon;
+exports.Timer = Timer;
 exports.ToggleAudio = ToggleAudio;
 exports.ToggleCaptions = ToggleCaptions;
 exports.ToggleChat = ToggleChat;
 exports.ToggleMirror = ToggleMirror;
 exports.ToggleNoiseSuppression = ToggleNoiseSuppression;
+exports.ToggleParticipants = ToggleParticipants;
 exports.TogglePolls = TogglePolls;
 exports.ToggleRecording = ToggleRecording;
 exports.ToggleVideo = ToggleVideo;
 exports.ToggleWhiteboard = ToggleWhiteboard;
+exports.VideoControlsOverlay = VideoControlsOverlay;
 exports.VideoLayout = VideoLayout;
 exports.VideoMutedSmallIcon = VideoMutedSmallIcon;
 exports.VideoOffIcon = VideoOffIcon;

@@ -32,7 +32,7 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
 
   // Floating Rnd position and size
   const [rndPosition, setRndPosition] = useState({ x: 0, y: 0 });
-  const [rndSize, setRndSize] = useState({ width: 240, height: 180 });
+  const [rndSize, setRndSize] = useState({ width: 320, height: 220 });
 
   // Update initial position once containerSize is known
   const hasInitializedRndPos = useRef(false);
@@ -40,7 +40,7 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
     if (containerSize.width > 0 && !hasInitializedRndPos.current) {
       setRndPosition({
         x: containerSize.width - rndSize.width,
-        y: 0
+        y: containerSize.height - rndSize.height
       });
       hasInitializedRndPos.current = true;
     }
@@ -100,6 +100,8 @@ export function VideoLayout({ className, style, whiteboardComponent }: VideoLayo
   useEffect(() => {
     if (!prevHasRemotesRef.current && hasRemotes) {
       setLocalVideoMode('floating');
+    } else {
+      setLocalVideoMode("grid");
     }
     prevHasRemotesRef.current = hasRemotes;
   }, [hasRemotes]);

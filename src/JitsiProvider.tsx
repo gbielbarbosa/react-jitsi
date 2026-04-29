@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { JitsiContext } from './JitsiContext';
 import type {
   JitsiMeetJSStatic,
@@ -24,6 +24,7 @@ import type {
   ScreenShareOptions,
   TrackEffect,
   WhiteboardData,
+  JitsiRoom,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -67,6 +68,8 @@ function nextPollId() {
 interface JitsiState {
   connectionStatus: ConnectionStatus;
   conferenceStatus: ConferenceStatus;
+  conferenceStart: number | null;
+  breakoutRooms: JitsiRoom[] | null;
   localTracks: JitsiLocalTrack[];
   remoteTracks: Map<string, JitsiRemoteTrack[]>;
   participants: Map<string, Participant>;
@@ -88,6 +91,7 @@ interface JitsiState {
   recordingSession: RecordingSession | null;
   // Noise suppression
   noiseSuppressionEnabled: boolean;
+  noiseSuppressionEffect: TrackEffect | null;
   // Virtual background
   virtualBackground: VirtualBackgroundConfig | null;
   // Whiteboard
@@ -101,6 +105,8 @@ interface JitsiState {
 type JitsiAction =
   | { type: 'SET_CONNECTION_STATUS'; status: ConnectionStatus }
   | { type: 'SET_CONFERENCE_STATUS'; status: ConferenceStatus }
+  | { type: 'SET_CONFERENCE_START'; start: number }
+  | { type: 'SET_BREAKOUT_ROOMS'; rooms: JitsiRoom[] }
   | { type: 'SET_LOCAL_TRACKS'; tracks: JitsiLocalTrack[] }
   | { type: 'ADD_LOCAL_TRACK'; track: JitsiLocalTrack }
   | { type: 'REMOVE_LOCAL_TRACK'; track: JitsiLocalTrack }
@@ -127,11 +133,12 @@ type JitsiAction =
   // Recording
   | { type: 'SET_RECORDING'; recording: boolean; session: RecordingSession | null }
   // Noise suppression
-  | { type: 'SET_NOISE_SUPPRESSION'; enabled: boolean }
+  | { type: 'SET_NOISE_SUPPRESSION'; enabled: boolean; effect: TrackEffect | null }
   // Virtual background
   | { type: 'SET_VIRTUAL_BACKGROUND'; config: VirtualBackgroundConfig | null }
   // Whiteboard
   | { type: 'SET_WHITEBOARD_ACTIVE'; active: boolean }
+  | { type: 'SET_WHITEBOARD_DATA'; data: WhiteboardData | null }
   // Polls
   | { type: 'ADD_POLL'; poll: Poll }
   | { type: 'UPDATE_POLL'; poll: Poll }
@@ -141,6 +148,8 @@ type JitsiAction =
 const initialState: JitsiState = {
   connectionStatus: 'disconnected',
   conferenceStatus: 'none',
+  conferenceStart: null,
+  breakoutRooms: null,
   localTracks: [],
   remoteTracks: new Map(),
   participants: new Map(),
@@ -158,6 +167,7 @@ const initialState: JitsiState = {
   isRecording: false,
   recordingSession: null,
   noiseSuppressionEnabled: false,
+  noiseSuppressionEffect: null,
   virtualBackground: null,
   whiteboardActive: false,
   whiteboardData: null,
@@ -171,6 +181,10 @@ function jitsiReducer(state: JitsiState, action: JitsiAction): JitsiState {
       return { ...state, connectionStatus: action.status };
     case 'SET_CONFERENCE_STATUS':
       return { ...state, conferenceStatus: action.status };
+    case 'SET_CONFERENCE_START':
+      return { ...state, conferenceStart: action.start };
+    case 'SET_BREAKOUT_ROOMS':
+      return { ...state, breakoutRooms: action.rooms };
     case 'SET_LOCAL_TRACKS':
       return { ...state, localTracks: action.tracks };
     case 'ADD_LOCAL_TRACK':
@@ -259,13 +273,15 @@ function jitsiReducer(state: JitsiState, action: JitsiAction): JitsiState {
       return { ...state, isRecording: action.recording, recordingSession: action.session };
     // Noise suppression
     case 'SET_NOISE_SUPPRESSION':
-      return { ...state, noiseSuppressionEnabled: action.enabled };
+      return { ...state, noiseSuppressionEnabled: action.enabled, noiseSuppressionEffect: action.effect };
     // Virtual background
     case 'SET_VIRTUAL_BACKGROUND':
       return { ...state, virtualBackground: action.config };
     // Whiteboard
     case 'SET_WHITEBOARD_ACTIVE':
       return { ...state, whiteboardActive: action.active };
+    case 'SET_WHITEBOARD_DATA':
+      return { ...state, whiteboardData: action.data };
     // Polls
     case 'ADD_POLL':
       return { ...state, polls: [...state.polls, action.poll] };
@@ -304,20 +320,23 @@ export function JitsiProvider({
   onError,
   onConnectionStatusChanged,
   virtualBackgroundEffects,
+  noiseSuppressionEffect,
   children,
 }: JitsiProviderProps) {
   const [state, dispatch] = useReducer(jitsiReducer, initialState);
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
 
   const connectionRef = useRef<JitsiConnection | null>(null);
   const conferenceRef = useRef<JitsiConference | null>(null);
+  const confStartRef = useRef<number | null>(null);
   const localTracksRef = useRef<JitsiLocalTrack[]>([]);
   const screenTrackRef = useRef<JitsiLocalTrack | null>(null);
   const remoteTracksRef = useRef<Map<string, JitsiRemoteTrack[]>>(new Map());
   // Keep ref in sync so TRACK_REMOVED handler can search by track ID
   remoteTracksRef.current = state.remoteTracks;
-  const noiseEffectRef = useRef<TrackEffect | null>(null);
+  const noiseEffectRef = useRef<TrackEffect | null>(noiseSuppressionEffect || null);
   const vbEffectRef = useRef<TrackEffect | null>(null);
-  const whiteboardHandlerRef = useRef<(data: WhiteboardData) => void>(null);
+  const whiteboardHandlerRef = useRef<(data: WhiteboardData | null) => void>(null);
   const whiteboardData = useRef<WhiteboardData>(null);
   const isLeavingRef = useRef(false);
   const isInitializedRef = useRef(false);
@@ -369,6 +388,415 @@ export function JitsiProvider({
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  const joinConference = useCallback(() => {
+    if (!isMountedRef.current) return;
+    const connection = connectionRef.current;
+    if (!connection) return;
+
+    const JitsiMeetJS = getJitsiMeetJS();
+
+    const roomParts = currentRoom?.split("@");
+    const roomDomain = roomParts?.[roomParts?.length - 1];
+    const roomId = currentRoom?.replace(`@${roomDomain}`, "");
+
+    const confOptions: ConferenceOptions = {
+      openBridgeChannel: true,
+      // P2P is disabled by default because it only supports one video track
+      // per peer connection. Screen sharing adds a second video track which
+      // requires JVB (Jitsi Videobridge) mode. Users can re-enable P2P via
+      // configOverwrite if they don't need simultaneous camera + screen share.
+      p2p: { enabled: false },
+      customDomain: roomId && roomId !== roomName ? `breakout.${domain}` : undefined,
+      ...configOverwriteRef.current,
+    };
+
+    const roomToJoin = roomId || roomName;
+    const conference = connection.initJitsiConference(roomToJoin, confOptions);
+    conferenceRef.current = conference;
+    safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'joining' });
+
+    // --- Conference events ---
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
+      if (!isMountedRef.current) return;
+      const myId = conference.myUserId();
+      safeDispatch({ type: 'SET_LOCAL_PARTICIPANT_ID', id: myId });
+      safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'joined' });
+      const role = conference.isModerator() ? 'moderator' : 'participant';
+      safeDispatch({ type: 'SET_LOCAL_ROLE', role });
+      const displayName = userInfoRef.current?.displayName || 'Me';
+      safeDispatch({
+        type: 'ADD_PARTICIPANT', participant: {
+          id: myId, displayName, role,
+          isLocal: true, audioMuted: false, videoMuted: false,
+        }
+      });
+      if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
+
+      if (conference.getParticipants().length === 0 && !confStartRef.current) {
+        const d = Date.now();
+        confStartRef.current = d;
+        safeDispatch({ type: "SET_CONFERENCE_START", start: d });
+      }
+
+      callbacksRef.current.onConferenceJoined?.();
+    });
+
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
+      safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'left' });
+      callbacksRef.current.onConferenceLeft?.();
+    });
+
+    conference.on(JitsiMeetJS.events.conference.CONFERENCE_ERROR, (err: unknown) => {
+      safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'error' });
+      callbacksRef.current.onError?.(new Error(String(err)));
+    });
+
+    conference.on(JitsiMeetJS.events.conference.DATA_CHANNEL_OPENED, () => {
+      setTimeout(() => conference.broadcastEndpointMessage({ type: 'handshake', participant: { id: conference.myUserId() } }), 500);
+    });
+
+    conference.on(JitsiMeetJS.events.conference.BREAKOUT_ROOMS_UPDATED, (payload: { roomCounter: number, rooms: { [key: string]: JitsiRoom } }) => {
+      safeDispatch({
+        type: "SET_BREAKOUT_ROOMS", rooms: Object.values(payload.rooms).sort((a, b) => a.isMainRoom || (a?.name || 0) > (b?.name || 0) ? 1 : ((a?.name || 0) < (b?.name || 0) ? -1 : 0))
+      });
+    });
+
+    conference.on(JitsiMeetJS.events.conference.BREAKOUT_ROOMS_MOVE_TO_ROOM, (roomJid: string) => {
+      joinBreakoutRoom(roomJid);
+    });
+
+    conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track: JitsiTrack) => {
+      if (isLeavingRef.current) return;
+      // Never add local tracks to remoteTracks - this would cause echo
+      if (track.isLocal()) return;
+      const pid = track.getParticipantId();
+      // Double-check: skip if participant ID matches our own
+      const myId = conference.myUserId();
+      if (pid === myId) return;
+      safeDispatch({ type: 'ADD_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
+
+      // Fallback cleanup: listen for the underlying MediaStreamTrack 'ended' event.
+      // This handles cases where TRACK_REMOVED doesn't fire (e.g. screen share in JVB mode).
+      try {
+        const remoteTrack = track as JitsiRemoteTrack;
+        const mediaTrack = (remoteTrack as unknown as Record<string, unknown>)['getTrack']
+          ? ((remoteTrack as unknown as { getTrack: () => MediaStreamTrack }).getTrack())
+          : null;
+        if (mediaTrack) {
+          const handleEnded = () => {
+            safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
+            mediaTrack.removeEventListener('ended', handleEnded);
+          };
+          mediaTrack.addEventListener('ended', handleEnded);
+        }
+      } catch { /* getTrack may not exist */ }
+    });
+
+    conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED, (track: JitsiTrack) => {
+      // Use participantId comparison instead of isLocal()
+      let pid = track.getParticipantId();
+      const myId = conference.myUserId();
+      if (!pid) {
+        const rt = remoteTracksRef.current;
+        for (const [participantId, tracks] of rt.entries()) {
+          if (tracks.some((t: JitsiRemoteTrack) => t.getId() === (track as JitsiRemoteTrack).getId())) {
+            pid = participantId;
+            break;
+          }
+        }
+      }
+      if (pid === myId) return;
+      if (!pid) return;
+      safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
+    });
+
+    // Listen for custom screen-share-stopped endpoint messages
+    // This is the reliable fallback for JVB mode where TRACK_REMOVED may not fire
+    conference.on(
+      JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED as string,
+      (participant: { getId: () => string }, msg: Record<string, unknown>) => {
+        if (msg && msg.type === 'screen-share-stopped') {
+          const pid = participant.getId();
+          const tracks = remoteTracksRef.current.get(pid) || [];
+          const desktopTracks = tracks.filter((t: JitsiRemoteTrack) => t.getVideoType?.() === 'desktop');
+          for (const dt of desktopTracks) {
+            safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: dt });
+          }
+        }
+      }
+    );
+
+    conference.on(JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED, (track: JitsiTrack) => {
+      if (track.isLocal()) {
+        // Ignore screen share track mute events - they should not affect camera state
+        if (screenTrackRef.current && track.getId?.() === screenTrackRef.current.getId?.()) return;
+        safeDispatch({ type: track.getType() === 'audio' ? 'SET_AUDIO_MUTED' : 'SET_VIDEO_MUTED', muted: track.isMuted() });
+      } else {
+        // For remote screen share tracks, don't update participant's videoMuted
+        if (track.getVideoType?.() === 'desktop') return;
+        safeDispatch({
+          type: 'UPDATE_PARTICIPANT', participantId: track.getParticipantId(),
+          changes: track.getType() === 'audio' ? { audioMuted: track.isMuted() } : { videoMuted: track.isMuted() }
+        });
+      }
+    });
+
+    conference.on(JitsiMeetJS.events.conference.USER_JOINED, (id: string, p: { getDisplayName: () => string; getRole: () => string }) => {
+      const np: Participant = { id, displayName: p.getDisplayName() || `Participant ${id.substring(0, 6)}`, role: p.getRole() || 'participant', isLocal: false, audioMuted: false, videoMuted: false };
+      safeDispatch({ type: 'ADD_PARTICIPANT', participant: np });
+      callbacksRef.current.onParticipantJoined?.(np);
+    });
+
+    conference.on(JitsiMeetJS.events.conference.USER_LEFT, (id: string) => {
+      safeDispatch({ type: 'CLEAR_REMOTE_PARTICIPANT', participantId: id });
+      callbacksRef.current.onParticipantLeft?.(id);
+    });
+
+    conference.on(JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED, (id: string, displayName: string) => {
+      safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { displayName } });
+    });
+
+    conference.on(JitsiMeetJS.events.conference.USER_ROLE_CHANGED, (id: string, role: string) => {
+      safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { role } });
+      const myId = conference.myUserId();
+      if (id === myId) {
+        safeDispatch({ type: 'SET_LOCAL_ROLE', role: role === 'moderator' ? 'moderator' : 'participant' });
+      }
+    });
+
+    conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id: string, status: string) => {
+      safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { connectionStatus: status } });
+    });
+
+    // In lib-jitsi-meet, detailed stats are emitted via connectionQuality events.
+    // We fall back to standard string if the object is missing in some versions.
+    const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || 'cq.local_stats_updated';
+    const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || 'cq.remote_stats_updated';
+
+    conference.on(localStatsEvent, (stats: any) => {
+      if (!stats || !isMountedRef.current) return;
+      const myId = conference.myUserId();
+
+      // Parse global/local connection info
+      const transport = stats.transport?.[0];
+      let remoteAddress: string | undefined;
+      let remotePort: number | undefined;
+      let localAddress: string | undefined;
+      let localPort: number | undefined;
+      if (transport) {
+        const remoteParts = transport.ip?.split(':') || [];
+        remoteAddress = remoteParts[0];
+        remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : undefined;
+        const localParts = transport.localip?.split(':') || [];
+        localAddress = localParts[0];
+        localPort = localParts[1] ? parseInt(localParts[1], 10) : undefined;
+      }
+
+      // The stats object contains properties mapped by Participant ID -> SSRC -> Value
+      const allParticipantIds = new Set([
+        ...Object.keys(stats.resolution || {}),
+        ...Object.keys(stats.framerate || {}),
+        ...Object.keys(stats.codec || {}),
+        myId // Always process local
+      ]);
+
+      allParticipantIds.forEach(pid => {
+        const ssrcMapRes = stats.resolution?.[pid];
+        const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] as any : undefined;
+
+        const ssrcMapFr = stats.framerate?.[pid];
+        const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] as number : undefined;
+
+        const ssrcMapCodec = stats.codec?.[pid];
+        let codecName: string | undefined;
+        let audioSsrc: string | undefined;
+        let videoSsrc: string | undefined;
+
+        if (ssrcMapCodec) {
+          for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
+            if ((codecData as any).audio) {
+              audioSsrc = ssrc;
+              if (!codecName) codecName = (codecData as any).audio;
+            }
+            if ((codecData as any).video) {
+              videoSsrc = ssrc;
+              codecName = (codecData as any).video; // Prefer video codec name if available
+            }
+          }
+        }
+
+        const isLocal = pid === myId;
+        const participantStats: any = {
+          isLocal,
+          participantId: pid,
+          resolution: resObj ? `${resObj.width}x${resObj.height}` : undefined,
+          frameRate,
+          codec: codecName,
+          audioSsrc,
+          videoSsrc,
+          connectedTo: 'Jitsi Videobridge'
+        };
+
+        if (isLocal) {
+          participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined;
+          participantStats.packetLoss = stats.packetLoss?.total !== undefined ? stats.packetLoss.total : 0;
+          participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : undefined;
+          participantStats.localAddress = localAddress;
+          participantStats.localPort = localPort;
+          participantStats.remoteAddress = remoteAddress;
+          participantStats.remotePort = remotePort;
+          participantStats.transport = transport?.type;
+          participantStats.servers = stats.serverRegion || 'Jitsi Server';
+        }
+
+        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: pid, changes: { stats: participantStats } });
+      });
+    });
+
+    conference.on(remoteStatsEvent, (id: string, stats: any) => {
+      if (!stats || !isMountedRef.current) return;
+
+      // Remote stats are usually less detailed but we can still parse what's available
+      const parsedRemoteStats = {
+        isLocal: false,
+        participantId: id,
+        bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined,
+        packetLoss: stats.packetLoss?.total || 0,
+        connectedTo: 'Jitsi Videobridge',
+      };
+
+      safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { stats: parsedRemoteStats } });
+    });
+
+    // Chat - filter out own messages (sendMessage already adds them locally)
+    conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id: string, text: string, ts: number) => {
+      if (id === conference.myUserId()) return; // Skip own messages - already added by sendMessage
+      const p = conference.getParticipantById(id);
+      const msg: ChatMessage = {
+        id: nextMsgId(), participantId: id, displayName: p?.getDisplayName() || id,
+        text, timestamp: ts || Date.now(), isPrivate: false, isLocal: false,
+      };
+      safeDispatch({ type: 'ADD_MESSAGE', message: msg });
+      callbacksRef.current.onMessageReceived?.(msg);
+    });
+
+    conference.on(JitsiMeetJS.events.conference.PRIVATE_MESSAGE_RECEIVED, (id: string, text: string, ts: number) => {
+      const p = conference.getParticipantById(id);
+      const msg: ChatMessage = {
+        id: nextMsgId(), participantId: id, displayName: p?.getDisplayName() || id,
+        text, timestamp: ts || Date.now(), isPrivate: true, isLocal: false,
+      };
+      safeDispatch({ type: 'ADD_MESSAGE', message: msg });
+      callbacksRef.current.onMessageReceived?.(msg);
+    });
+
+    // Recording
+    conference.on(JitsiMeetJS.events.conference.RECORDER_STATE_CHANGED, (status: { id?: string; mode?: string; status?: string; error?: string }) => {
+      const isOn = status.status === 'on' || status.status === 'pending';
+      const session: RecordingSession | null = status.id ? {
+        id: status.id, mode: (status.mode as 'file' | 'stream') || 'file',
+        status: (status.status as RecordingSession['status']) || 'off', error: status.error,
+      } : null;
+      if (session?.id) recordingSessionIdRef.current = session.id;
+      safeDispatch({ type: 'SET_RECORDING', recording: isOn, session });
+    });
+
+    // Captions / Transcription
+    conference.on(JitsiMeetJS.events.conference.TRANSCRIPTION_STATUS_CHANGED, (status: string) => {
+      safeDispatch({ type: 'SET_CAPTIONS_ENABLED', enabled: status === 'ON' });
+    });
+
+    conference.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED, (_: unknown, payload: { type?: string; text?: string; language?: string; participant?: { id?: string; name?: string }; final?: boolean }) => {
+      if (payload.type === 'transcription-result' && payload.text) {
+        const caption: CaptionEntry = {
+          participantId: payload.participant?.id || '',
+          displayName: payload.participant?.name || '',
+          text: payload.text, timestamp: Date.now(),
+          language: payload.language, isFinal: payload.final ?? true,
+        };
+        safeDispatch({ type: 'ADD_CAPTION', caption });
+      }
+
+      console.log(payload);
+
+      if (payload.type === 'handshake') {
+        if (payload.participant?.id === conference.myUserId()) return;
+        const ids = [conference.myUserId(), ...conference.getParticipants().map(p => p.getId())]
+          .sort()
+          .filter(id => id !== payload.participant?.id);
+        if (ids[0] !== conference.myUserId() || !confStartRef.current) return;
+
+        conference.broadcastEndpointMessage({
+          type: "handshake-data",
+          data: {
+            whiteboardData: whiteboardData.current,
+            confStartAt: Date.now() - confStartRef.current
+          }
+        });
+      }
+
+      // Handshake data
+      if (payload.type === 'handshake-data') {
+        const wd = (payload as { data: { whiteboardData: WhiteboardData | null, confStartAt: number } }).data;
+
+        whiteboardHandlerRef.current?.(wd.whiteboardData);
+        whiteboardData.current = wd.whiteboardData;
+        safeDispatch({ type: "SET_WHITEBOARD_DATA", data: wd.whiteboardData });
+
+        const d = Date.now() - wd.confStartAt;
+        confStartRef.current = d;
+        safeDispatch({ type: "SET_CONFERENCE_START", start: d });
+      }
+
+      // Whiteboard data
+      if (payload.type === 'whiteboard-data') {
+        const wd = (payload as { data: WhiteboardData }).data;
+        if (wd.senderId === conference.myUserId()) return;
+
+        whiteboardHandlerRef.current?.(wd);
+        whiteboardData.current = wd;
+        safeDispatch({ type: "SET_WHITEBOARD_DATA", data: wd });
+      }
+      // Poll data
+      if (payload.type === 'poll-data') {
+        const pd = payload as { action: string; poll: Poll };
+        if (pd.action === 'create') {
+          safeDispatch({ type: 'ADD_POLL', poll: pd.poll });
+          safeDispatch({ type: 'SET_ACTIVE_POLL', poll: pd.poll });
+        } else if (pd.action === 'vote' || pd.action === 'close') {
+          safeDispatch({ type: 'UPDATE_POLL', poll: pd.poll });
+          if (pd.action === 'close') {
+            safeDispatch({ type: 'SET_ACTIVE_POLL', poll: null });
+          }
+        }
+      }
+    });
+
+    // Join the conference first - Jicofo needs the MUC presence before
+    // it allocates a Jitsi Videobridge. Tracks are added after.
+    conference.join();
+
+    // Create local tracks in parallel and add them when ready
+    if (localTracksRef.current.length === 0) {
+      JitsiMeetJS.createLocalTracks({ devices: devicesRef.current })
+        .then((tracks) => {
+          if (!isMountedRef.current) { tracks.forEach((t) => t.dispose()); return; }
+          localTracksRef.current = tracks;
+          safeDispatch({ type: 'SET_LOCAL_TRACKS', tracks });
+          for (const t of tracks) {
+            safeDispatch({ type: t.getType() === 'audio' ? 'SET_AUDIO_MUTED' : 'SET_VIDEO_MUTED', muted: t.isMuted() });
+          }
+          return Promise.all(tracks.map((t) => conference.addTrack(t)));
+        })
+        .catch((err: Error) => {
+          console.error('[react-jitsi] Error creating local tracks:', err);
+          callbacksRef.current.onError?.(err);
+        });
+    } else {
+      localTracksRef.current.forEach((t) => conference.addTrack(t));
+    }
+  }, [roomName, currentRoom]);
 
   // ----- Initialize and connect -----
   // Only re-run when domain or roomName truly change (primitives).
@@ -429,357 +857,8 @@ export function JitsiProvider({
     callbacksRef.current.onConnectionStatusChanged?.('connecting');
 
     const onConnectionSuccess = () => {
-      if (!isMountedRef.current) return;
       safeDispatch({ type: 'SET_CONNECTION_STATUS', status: 'connected' });
       callbacksRef.current.onConnectionStatusChanged?.('connected');
-
-      const confOptions: ConferenceOptions = {
-        openBridgeChannel: true,
-        // P2P is disabled by default because it only supports one video track
-        // per peer connection. Screen sharing adds a second video track which
-        // requires JVB (Jitsi Videobridge) mode. Users can re-enable P2P via
-        // configOverwrite if they don't need simultaneous camera + screen share.
-        p2p: { enabled: false },
-        ...configOverwriteRef.current,
-      };
-
-      const conference = connection.initJitsiConference(roomName, confOptions);
-      conferenceRef.current = conference;
-      safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'joining' });
-
-      // --- Conference events ---
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
-        if (!isMountedRef.current) return;
-        const myId = conference.myUserId();
-        safeDispatch({ type: 'SET_LOCAL_PARTICIPANT_ID', id: myId });
-        safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'joined' });
-        const role = conference.isModerator() ? 'moderator' : 'participant';
-        safeDispatch({ type: 'SET_LOCAL_ROLE', role });
-        const displayName = userInfoRef.current?.displayName || 'Me';
-        safeDispatch({
-          type: 'ADD_PARTICIPANT', participant: {
-            id: myId, displayName, role,
-            isLocal: true, audioMuted: false, videoMuted: false,
-          }
-        });
-        if (userInfoRef.current?.displayName) conference.setDisplayName(userInfoRef.current.displayName);
-
-        if ((conferenceRef.current as any).rtc?._channel?.isOpen?.())
-          conference.broadcastEndpointMessage({ type: 'request-whiteboard' });
-        callbacksRef.current.onConferenceJoined?.();
-      });
-
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
-        safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'left' });
-        callbacksRef.current.onConferenceLeft?.();
-      });
-
-      conference.on(JitsiMeetJS.events.conference.CONFERENCE_ERROR, (err: unknown) => {
-        safeDispatch({ type: 'SET_CONFERENCE_STATUS', status: 'error' });
-        callbacksRef.current.onError?.(new Error(String(err)));
-      });
-
-      conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track: JitsiTrack) => {
-        if (isLeavingRef.current) return;
-        // Never add local tracks to remoteTracks - this would cause echo
-        if (track.isLocal()) return;
-        const pid = track.getParticipantId();
-        // Double-check: skip if participant ID matches our own
-        const myId = conference.myUserId();
-        if (pid === myId) return;
-        safeDispatch({ type: 'ADD_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
-
-        // Fallback cleanup: listen for the underlying MediaStreamTrack 'ended' event.
-        // This handles cases where TRACK_REMOVED doesn't fire (e.g. screen share in JVB mode).
-        try {
-          const remoteTrack = track as JitsiRemoteTrack;
-          const mediaTrack = (remoteTrack as unknown as Record<string, unknown>)['getTrack']
-            ? ((remoteTrack as unknown as { getTrack: () => MediaStreamTrack }).getTrack())
-            : null;
-          if (mediaTrack) {
-            const handleEnded = () => {
-              safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
-              mediaTrack.removeEventListener('ended', handleEnded);
-            };
-            mediaTrack.addEventListener('ended', handleEnded);
-          }
-        } catch { /* getTrack may not exist */ }
-      });
-
-      conference.on(JitsiMeetJS.events.conference.TRACK_REMOVED, (track: JitsiTrack) => {
-        // Use participantId comparison instead of isLocal()
-        let pid = track.getParticipantId();
-        const myId = conference.myUserId();
-        if (!pid) {
-          const rt = remoteTracksRef.current;
-          for (const [participantId, tracks] of rt.entries()) {
-            if (tracks.some((t: JitsiRemoteTrack) => t.getId() === (track as JitsiRemoteTrack).getId())) {
-              pid = participantId;
-              break;
-            }
-          }
-        }
-        if (pid === myId) return;
-        if (!pid) return;
-        safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: track as JitsiRemoteTrack });
-      });
-
-      // Listen for custom screen-share-stopped endpoint messages
-      // This is the reliable fallback for JVB mode where TRACK_REMOVED may not fire
-      conference.on(
-        JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED as string,
-        (participant: { getId: () => string }, msg: Record<string, unknown>) => {
-          if (msg && msg.type === 'screen-share-stopped') {
-            const pid = participant.getId();
-            const tracks = remoteTracksRef.current.get(pid) || [];
-            const desktopTracks = tracks.filter((t: JitsiRemoteTrack) => t.getVideoType?.() === 'desktop');
-            for (const dt of desktopTracks) {
-              safeDispatch({ type: 'REMOVE_REMOTE_TRACK', participantId: pid, track: dt });
-            }
-          }
-        }
-      );
-
-      conference.on(JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED, (track: JitsiTrack) => {
-        if (track.isLocal()) {
-          // Ignore screen share track mute events - they should not affect camera state
-          if (screenTrackRef.current && track.getId?.() === screenTrackRef.current.getId?.()) return;
-          safeDispatch({ type: track.getType() === 'audio' ? 'SET_AUDIO_MUTED' : 'SET_VIDEO_MUTED', muted: track.isMuted() });
-        } else {
-          // For remote screen share tracks, don't update participant's videoMuted
-          if (track.getVideoType?.() === 'desktop') return;
-          safeDispatch({
-            type: 'UPDATE_PARTICIPANT', participantId: track.getParticipantId(),
-            changes: track.getType() === 'audio' ? { audioMuted: track.isMuted() } : { videoMuted: track.isMuted() }
-          });
-        }
-      });
-
-      conference.on(JitsiMeetJS.events.conference.USER_JOINED, (id: string, p: { getDisplayName: () => string; getRole: () => string }) => {
-        const np: Participant = { id, displayName: p.getDisplayName() || `Participant ${id.substring(0, 6)}`, role: p.getRole() || 'participant', isLocal: false, audioMuted: false, videoMuted: false };
-        safeDispatch({ type: 'ADD_PARTICIPANT', participant: np });
-        callbacksRef.current.onParticipantJoined?.(np);
-      });
-
-      conference.on(JitsiMeetJS.events.conference.USER_LEFT, (id: string) => {
-        safeDispatch({ type: 'CLEAR_REMOTE_PARTICIPANT', participantId: id });
-        callbacksRef.current.onParticipantLeft?.(id);
-      });
-
-      conference.on(JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED, (id: string, displayName: string) => {
-        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { displayName } });
-      });
-
-      conference.on(JitsiMeetJS.events.conference.USER_ROLE_CHANGED, (id: string, role: string) => {
-        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { role } });
-        const myId = conference.myUserId();
-        if (id === myId) {
-          safeDispatch({ type: 'SET_LOCAL_ROLE', role: role === 'moderator' ? 'moderator' : 'participant' });
-        }
-      });
-
-      conference.on(JitsiMeetJS.events.conference.PARTICIPANT_CONN_STATUS_CHANGED, (id: string, status: string) => {
-        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { connectionStatus: status } });
-      });
-
-      // In lib-jitsi-meet, detailed stats are emitted via connectionQuality events.
-      // We fall back to standard string if the object is missing in some versions.
-      const localStatsEvent = JitsiMeetJS.events.connectionQuality?.LOCAL_STATS_UPDATED || 'cq.local_stats_updated';
-      const remoteStatsEvent = JitsiMeetJS.events.connectionQuality?.REMOTE_STATS_UPDATED || 'cq.remote_stats_updated';
-
-      conference.on(localStatsEvent, (stats: any) => {
-        if (!stats || !isMountedRef.current) return;
-        const myId = conference.myUserId();
-
-        // Parse global/local connection info
-        const transport = stats.transport?.[0];
-        let remoteAddress: string | undefined;
-        let remotePort: number | undefined;
-        let localAddress: string | undefined;
-        let localPort: number | undefined;
-        if (transport) {
-          const remoteParts = transport.ip?.split(':') || [];
-          remoteAddress = remoteParts[0];
-          remotePort = remoteParts[1] ? parseInt(remoteParts[1], 10) : undefined;
-          const localParts = transport.localip?.split(':') || [];
-          localAddress = localParts[0];
-          localPort = localParts[1] ? parseInt(localParts[1], 10) : undefined;
-        }
-
-        // The stats object contains properties mapped by Participant ID -> SSRC -> Value
-        const allParticipantIds = new Set([
-          ...Object.keys(stats.resolution || {}),
-          ...Object.keys(stats.framerate || {}),
-          ...Object.keys(stats.codec || {}),
-          myId // Always process local
-        ]);
-
-        allParticipantIds.forEach(pid => {
-          const ssrcMapRes = stats.resolution?.[pid];
-          const resObj = ssrcMapRes ? Object.values(ssrcMapRes)[0] as any : undefined;
-
-          const ssrcMapFr = stats.framerate?.[pid];
-          const frameRate = ssrcMapFr ? Object.values(ssrcMapFr)[0] as number : undefined;
-
-          const ssrcMapCodec = stats.codec?.[pid];
-          let codecName: string | undefined;
-          let audioSsrc: string | undefined;
-          let videoSsrc: string | undefined;
-
-          if (ssrcMapCodec) {
-            for (const [ssrc, codecData] of Object.entries(ssrcMapCodec)) {
-              if ((codecData as any).audio) {
-                audioSsrc = ssrc;
-                if (!codecName) codecName = (codecData as any).audio;
-              }
-              if ((codecData as any).video) {
-                videoSsrc = ssrc;
-                codecName = (codecData as any).video; // Prefer video codec name if available
-              }
-            }
-          }
-
-          const isLocal = pid === myId;
-          const participantStats: any = {
-            isLocal,
-            participantId: pid,
-            resolution: resObj ? `${resObj.width}x${resObj.height}` : undefined,
-            frameRate,
-            codec: codecName,
-            audioSsrc,
-            videoSsrc,
-            connectedTo: 'Jitsi Videobridge'
-          };
-
-          if (isLocal) {
-            participantStats.bitrate = stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined;
-            participantStats.packetLoss = stats.packetLoss?.total !== undefined ? stats.packetLoss.total : 0;
-            participantStats.estimatedBandwidth = stats.bandwidth ? Math.round(stats.bandwidth.download || 0) : undefined;
-            participantStats.localAddress = localAddress;
-            participantStats.localPort = localPort;
-            participantStats.remoteAddress = remoteAddress;
-            participantStats.remotePort = remotePort;
-            participantStats.transport = transport?.type;
-            participantStats.servers = stats.serverRegion || 'Jitsi Server';
-          }
-
-          safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: pid, changes: { stats: participantStats } });
-        });
-      });
-
-      conference.on(remoteStatsEvent, (id: string, stats: any) => {
-        if (!stats || !isMountedRef.current) return;
-
-        // Remote stats are usually less detailed but we can still parse what's available
-        const parsedRemoteStats = {
-          isLocal: false,
-          participantId: id,
-          bitrate: stats.bitrate ? Math.round((stats.bitrate.download || 0) + (stats.bitrate.upload || 0)) : undefined,
-          packetLoss: stats.packetLoss?.total || 0,
-          connectedTo: 'Jitsi Videobridge',
-        };
-
-        safeDispatch({ type: 'UPDATE_PARTICIPANT', participantId: id, changes: { stats: parsedRemoteStats } });
-      });
-
-      // Chat - filter out own messages (sendMessage already adds them locally)
-      conference.on(JitsiMeetJS.events.conference.MESSAGE_RECEIVED, (id: string, text: string, ts: number) => {
-        if (id === conference.myUserId()) return; // Skip own messages - already added by sendMessage
-        const p = conference.getParticipantById(id);
-        const msg: ChatMessage = {
-          id: nextMsgId(), participantId: id, displayName: p?.getDisplayName() || id,
-          text, timestamp: ts || Date.now(), isPrivate: false, isLocal: false,
-        };
-        safeDispatch({ type: 'ADD_MESSAGE', message: msg });
-        callbacksRef.current.onMessageReceived?.(msg);
-      });
-
-      conference.on(JitsiMeetJS.events.conference.PRIVATE_MESSAGE_RECEIVED, (id: string, text: string, ts: number) => {
-        const p = conference.getParticipantById(id);
-        const msg: ChatMessage = {
-          id: nextMsgId(), participantId: id, displayName: p?.getDisplayName() || id,
-          text, timestamp: ts || Date.now(), isPrivate: true, isLocal: false,
-        };
-        safeDispatch({ type: 'ADD_MESSAGE', message: msg });
-        callbacksRef.current.onMessageReceived?.(msg);
-      });
-
-      // Recording
-      conference.on(JitsiMeetJS.events.conference.RECORDER_STATE_CHANGED, (status: { id?: string; mode?: string; status?: string; error?: string }) => {
-        const isOn = status.status === 'on' || status.status === 'pending';
-        const session: RecordingSession | null = status.id ? {
-          id: status.id, mode: (status.mode as 'file' | 'stream') || 'file',
-          status: (status.status as RecordingSession['status']) || 'off', error: status.error,
-        } : null;
-        if (session?.id) recordingSessionIdRef.current = session.id;
-        safeDispatch({ type: 'SET_RECORDING', recording: isOn, session });
-      });
-
-      // Captions / Transcription
-      conference.on(JitsiMeetJS.events.conference.TRANSCRIPTION_STATUS_CHANGED, (status: string) => {
-        safeDispatch({ type: 'SET_CAPTIONS_ENABLED', enabled: status === 'ON' });
-      });
-
-      conference.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED, (_: unknown, payload: { type?: string; text?: string; language?: string; participant?: { id?: string; name?: string }; final?: boolean }) => {
-        if (payload.type === 'transcription-result' && payload.text) {
-          const caption: CaptionEntry = {
-            participantId: payload.participant?.id || '',
-            displayName: payload.participant?.name || '',
-            text: payload.text, timestamp: Date.now(),
-            language: payload.language, isFinal: payload.final ?? true,
-          };
-          safeDispatch({ type: 'ADD_CAPTION', caption });
-        }
-
-        if (payload.type === 'request-whiteboard') {
-          const ids = [conference.myUserId(), ...conference.getParticipants().map(p => p.getId())].sort();
-          if (ids[0] !== conference.myUserId()) return;
-
-          if (state.whiteboardData) conference.broadcastEndpointMessage({ type: "whiteboard-data", data: state.whiteboardData });
-        }
-
-        // Whiteboard data
-        if (payload.type === 'whiteboard-data') {
-          const wd = (payload as { data: WhiteboardData }).data;
-          if (wd.senderId === conference.myUserId()) return;
-
-          whiteboardHandlerRef.current?.(wd);
-          whiteboardData.current = wd;
-        }
-        // Poll data
-        if (payload.type === 'poll-data') {
-          const pd = payload as { action: string; poll: Poll };
-          if (pd.action === 'create') {
-            safeDispatch({ type: 'ADD_POLL', poll: pd.poll });
-            safeDispatch({ type: 'SET_ACTIVE_POLL', poll: pd.poll });
-          } else if (pd.action === 'vote' || pd.action === 'close') {
-            safeDispatch({ type: 'UPDATE_POLL', poll: pd.poll });
-            if (pd.action === 'close') {
-              safeDispatch({ type: 'SET_ACTIVE_POLL', poll: null });
-            }
-          }
-        }
-      });
-
-      // Join the conference first - Jicofo needs the MUC presence before
-      // it allocates a Jitsi Videobridge. Tracks are added after.
-      conference.join();
-
-      // Create local tracks in parallel and add them when ready
-      JitsiMeetJS.createLocalTracks({ devices: devicesRef.current })
-        .then((tracks) => {
-          if (!isMountedRef.current) { tracks.forEach((t) => t.dispose()); return; }
-          localTracksRef.current = tracks;
-          safeDispatch({ type: 'SET_LOCAL_TRACKS', tracks });
-          for (const t of tracks) {
-            safeDispatch({ type: t.getType() === 'audio' ? 'SET_AUDIO_MUTED' : 'SET_VIDEO_MUTED', muted: t.isMuted() });
-          }
-          return Promise.all(tracks.map((t) => conference.addTrack(t)));
-        })
-        .catch((err: Error) => {
-          console.error('[react-jitsi] Error creating local tracks:', err);
-          callbacksRef.current.onError?.(err);
-        });
     };
 
     const onConnectionFailed = (err: unknown) => {
@@ -802,7 +881,70 @@ export function JitsiProvider({
 
     return () => { isInitializedRef.current = false; cleanup(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, roomName, token, autoJoin, safeDispatch, cleanup]);
+  }, [domain, token, autoJoin, safeDispatch, cleanup]);
+
+  useEffect(() => {
+    const connection = connectionRef.current;
+    if (
+      state.connectionStatus !== 'connected' ||
+      !connection ||
+      state.conferenceStatus === "joining" ||
+      state.conferenceStatus === "joined"
+    ) return;
+
+    if (state.conferenceStatus === "switching") {
+      conferenceRef.current?.leave();
+      return;
+    }
+
+    whiteboardHandlerRef.current?.(null);
+    whiteboardData.current = null;
+    safeDispatch({ type: "SET_WHITEBOARD_DATA", data: null });
+
+    joinConference();
+  }, [state.connectionStatus, state.conferenceStatus, roomName, currentRoom]);
+
+  // ===================== BREAKOUTROOMS =====================
+
+  const createBreakoutRoom = useCallback((subject: string) => {
+    if (!conferenceRef.current) return
+
+    let count = 0;
+    let name = subject;
+    while (state.breakoutRooms?.find(room => room.name === name)) {
+      count++;
+      name = `${subject} #${count}`;
+    }
+
+    conferenceRef.current.getBreakoutRooms()?.createBreakoutRoom(name);
+  }, [state.breakoutRooms]);
+
+  const joinBreakoutRoom = useCallback((roomJid: string) => {
+    if (!conferenceRef.current) return;
+    safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "switching" });
+    setCurrentRoom(roomJid);
+  }, []);
+
+  const leaveBreakoutRoom = useCallback(() => {
+    if (!conferenceRef.current) return;
+    safeDispatch({ type: "SET_CONFERENCE_STATUS", status: "switching" });
+    setCurrentRoom(null);
+  }, []);
+
+  const removeBreakoutRoom = useCallback((roomJid: string) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.removeBreakoutRoom(roomJid);
+  }, []);
+
+  const renameBreakoutRoom = useCallback((roomJid: string, subject: string) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.renameBreakoutRoom(roomJid, subject);
+  }, []);
+
+  const sendToBreakoutRoom = useCallback((participantId: string, roomJid: string) => {
+    if (!conferenceRef.current) return;
+    conferenceRef.current.getBreakoutRooms()?.sendParticipantToRoom(participantId, roomJid);
+  }, []);
 
   // ===================== ACTIONS =====================
 
@@ -942,20 +1084,16 @@ export function JitsiProvider({
       if (effect) {
         await audioTrack.setEffect(effect);
         noiseEffectRef.current = effect;
-        dispatch({ type: 'SET_NOISE_SUPPRESSION', enabled: true });
+        dispatch({ type: 'SET_NOISE_SUPPRESSION', enabled: true, effect });
       } else {
         await audioTrack.setEffect(undefined);
-        noiseEffectRef.current = null;
-        dispatch({ type: 'SET_NOISE_SUPPRESSION', enabled: false });
+        dispatch({ type: 'SET_NOISE_SUPPRESSION', enabled: false, effect: noiseEffectRef.current });
       }
     } catch (err) { callbacksRef.current.onError?.(err as Error); }
   }, []);
 
   const toggleNoiseSuppression = useCallback(async () => {
-    if (noiseEffectRef.current) {
-      await setNoiseSuppression(null);
-    }
-    // If no effect is set, the developer must provide one via setNoiseSuppression(effect)
+    await setNoiseSuppression(noiseEffectRef.current);
   }, [setNoiseSuppression]);
 
   // Chat
@@ -1005,6 +1143,8 @@ export function JitsiProvider({
   }, [state.whiteboardActive]);
 
   const getWhiteboardData = useCallback(() => {
+    console.log("Get Data");
+    console.log(whiteboardData.current);
     return whiteboardData.current;
   }, []);
 
@@ -1017,7 +1157,7 @@ export function JitsiProvider({
     conferenceRef.current.broadcastEndpointMessage({ type: 'whiteboard-data', data });
   }, []);
 
-  const onWhiteboardData = useCallback((handler: (data: WhiteboardData) => void) => {
+  const onWhiteboardData = useCallback((handler: (data: WhiteboardData | null) => void) => {
     whiteboardHandlerRef.current = handler;
     return () => { whiteboardHandlerRef.current = null };
   }, []);
@@ -1104,6 +1244,7 @@ export function JitsiProvider({
   // ----- Context value -----
   const contextValue: JitsiContextValue = {
     connectionStatus: state.connectionStatus, conferenceStatus: state.conferenceStatus,
+    conferenceStart: state.conferenceStart,
     localTracks: state.localTracks, localScreenTrack: state.localScreenTrack,
     remoteTracks: state.remoteTracks,
     participants: state.participants, localParticipantId: state.localParticipantId,
@@ -1113,11 +1254,13 @@ export function JitsiProvider({
     captionsEnabled: state.captionsEnabled, captions: state.captions,
     isRecording: state.isRecording, recordingSession: state.recordingSession,
     noiseSuppressionEnabled: state.noiseSuppressionEnabled,
+    noiseSuppressionEffect: state.noiseSuppressionEffect,
     virtualBackground: state.virtualBackground,
     virtualBackgroundEffects: virtualBackgroundEffects || [],
     whiteboardActive: state.whiteboardActive,
     whiteboardData: state.whiteboardData, polls: state.polls, activePoll: state.activePoll,
     connection: connectionRef.current, conference: conferenceRef.current,
+    breakoutRooms: state.breakoutRooms,
     toggleAudio, toggleVideo, leave, startScreenShare, stopScreenShare,
     setDisplayName, getDevices, switchCamera, switchMicrophone, setAudioOutput, toggleMirror,
     setVirtualBackground, removeVirtualBackground, setNoiseSuppression, toggleNoiseSuppression,
@@ -1127,6 +1270,8 @@ export function JitsiProvider({
     createPoll, votePoll, closePoll,
     setVideoQuality, setSenderQuality, setMaxVisibleParticipants,
     kickParticipant, muteParticipant, grantModerator, muteAll,
+    createBreakoutRoom, joinBreakoutRoom, leaveBreakoutRoom,
+    removeBreakoutRoom, renameBreakoutRoom, sendToBreakoutRoom
   };
 
   return <JitsiContext.Provider value={contextValue}>{children}</JitsiContext.Provider>;

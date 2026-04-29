@@ -22,6 +22,10 @@
   --rj-input-border: lab(100% 0 0/.15);
 }
 
+.excalidraw {
+  z-index: 0;
+}
+
 .rj-btn {
   display: inline-flex;
   align-items: center;
@@ -182,6 +186,47 @@
 /* Connection status              */
 /* ============================== */
 
+.rj-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--rj-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.rj-loading__icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.rj-loading__icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.rj-loading__label {
+  padding-top: 10px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.rj-animate-spin {
+  animation: rj-spin 1s linear infinite;
+}
+
+@keyframes rj-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .rj-connection {
   display: flex;
   align-items: center;
@@ -204,6 +249,10 @@
 .rj-connection__count {
   color: #9ca3af;
   margin-left: 4px;
+}
+
+.rj-meeting-timer {
+  min-width: 45px;
 }
 
 /* ============================== */
@@ -708,6 +757,7 @@
 }
 
 .rj-admin-btn {
+  width: 100%;
   padding: 4px 10px;
   border-radius: 6px;
   border: none;
@@ -716,16 +766,15 @@
   font-weight: 500;
   transition: all 0.15s ease;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.rj-admin-btn--mute {
-  background-color: var(--rj-red-950);
-  color: var(--rj-red-300);
-}
-
+.rj-admin-btn--mute,
 .rj-admin-btn--kick {
-  background-color: var(--rj-red-950);
-  color: var(--rj-red-300);
+  background-color: var(--rj-input-bg);
+  color: #e0e0e0;
 }
 
 .rj-admin-btn--promote {
@@ -761,6 +810,9 @@
 /* ============================== */
 
 .rj-btn-sm {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   padding: 8px 16px;
   border-radius: 8px;
   border: none;
@@ -798,13 +850,8 @@
 }
 
 .rj-meeting__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background-color: var(--rj-bg);
-  backdrop-filter: blur(8px);
+  position: absolute;
+  padding: 12px;
 }
 
 .rj-meeting__title {
@@ -1147,19 +1194,18 @@
 }
 
 .rj-video-overlay-admin {
-  background-color: var(--rj-card);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 12px;
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  color: #e0e0e0;
-  font-size: 12px;
   margin-top: 8px;
-  min-width: 200px;
 }
 
 .rj-video-overlay-admin .rj-admin-controls {
   flex-direction: column;
+}
+
+.rj-video-overlay-admin .rj-admin-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--rj-card);
 }
 
 /* ============================== */

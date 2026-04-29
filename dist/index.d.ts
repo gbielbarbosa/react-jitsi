@@ -40,6 +40,7 @@ interface ConnectionOptions {
         muc: string;
         anonymousdomain?: string;
         focus?: string;
+        breakoutMuc?: string;
     };
     serviceUrl: string;
     clientNode?: string;
@@ -63,6 +64,7 @@ interface JitsiConnection {
     initJitsiConference: (roomName: string, options: ConferenceOptions) => JitsiConference;
 }
 interface JitsiConference {
+    room?: JitsiChatRoom;
     on: (event: string, handler: (...args: any[]) => void) => void;
     off: (event: string, handler: (...args: any[]) => void) => void;
     join: (password?: string) => void;
@@ -91,6 +93,42 @@ interface JitsiConference {
     startRecording: (options: RecordingOptions) => Promise<void>;
     stopRecording: (sessionId: string) => Promise<void>;
     setSubject: (subject: string) => void;
+    getName: () => string;
+    getBreakoutRooms: () => JitsiBreakoutRooms | undefined;
+}
+interface JitsiBreakoutRooms {
+    room: JitsiChatRoom;
+    isBreakoutRoom: () => boolean;
+    createBreakoutRoom: (subject: string) => void;
+    renameBreakoutRoom: (roomJid: string, subject: string) => void;
+    removeBreakoutRoom: (roomJid: string) => void;
+    sendParticipantToRoom: (participantJid: string, roomJid: string) => void;
+}
+interface JitsiChatRoom {
+    roomjid: string;
+    subject: string;
+    members: Record<string, JitsiChatRoomMember>;
+}
+interface JitsiChatRoomMember {
+    affiliation?: string;
+    botType?: string;
+    displayName?: string;
+    id?: string;
+    isFocus?: boolean;
+    jid?: string;
+}
+interface JitsiRoom {
+    id: string;
+    isMainRoom: boolean;
+    jid: string;
+    name?: string;
+    participants: {
+        [key: string]: {
+            displayName: string;
+            jid: string;
+            role: string;
+        };
+    };
 }
 interface JitsiParticipant {
     getId: () => string;
@@ -154,7 +192,7 @@ interface RecordingSession {
     error?: string;
 }
 type ConnectionStatus$1 = 'disconnected' | 'connecting' | 'connected' | 'failed';
-type ConferenceStatus = 'none' | 'joining' | 'joined' | 'left' | 'error';
+type ConferenceStatus = 'none' | 'joining' | 'joined' | 'left' | 'error' | 'switching';
 interface UserInfo {
     displayName?: string;
     email?: string;
@@ -309,12 +347,14 @@ interface JitsiProviderProps {
     onConnectionStatusChanged?: (status: ConnectionStatus$1) => void;
     /** Available virtual background options for the UI to render */
     virtualBackgroundEffects?: VirtualBackgroundEffect[];
+    noiseSuppressionEffect?: TrackEffect;
     /** React children */
     children: React.ReactNode;
 }
 interface JitsiContextValue {
     connectionStatus: ConnectionStatus$1;
     conferenceStatus: ConferenceStatus;
+    conferenceStart: number | null;
     localTracks: JitsiLocalTrack[];
     localScreenTrack: JitsiLocalTrack | null;
     remoteTracks: Map<string, JitsiRemoteTrack[]>;
@@ -332,6 +372,7 @@ interface JitsiContextValue {
     isRecording: boolean;
     recordingSession: RecordingSession | null;
     noiseSuppressionEnabled: boolean;
+    noiseSuppressionEffect: TrackEffect | null;
     virtualBackground: VirtualBackgroundConfig | null;
     virtualBackgroundEffects: VirtualBackgroundEffect[];
     whiteboardActive: boolean;
@@ -340,6 +381,7 @@ interface JitsiContextValue {
     activePoll: Poll | null;
     connection: JitsiConnection | null;
     conference: JitsiConference | null;
+    breakoutRooms: JitsiRoom[] | null;
     toggleAudio: () => Promise<void>;
     toggleVideo: () => Promise<void>;
     leave: () => Promise<void>;
@@ -366,7 +408,7 @@ interface JitsiContextValue {
     toggleWhiteboard: () => void;
     getWhiteboardData: () => WhiteboardData | null;
     sendWhiteboardData: (data: WhiteboardData) => void;
-    onWhiteboardData: (handler: (data: WhiteboardData) => void) => () => void;
+    onWhiteboardData: (handler: (data: WhiteboardData | null) => void) => () => void;
     createPoll: (question: string, options: string[]) => void;
     votePoll: (pollId: string, optionIndex: number) => void;
     closePoll: (pollId: string) => void;
@@ -377,9 +419,15 @@ interface JitsiContextValue {
     muteParticipant: (id: string, mediaType?: 'audio' | 'video') => void;
     grantModerator: (id: string) => void;
     muteAll: (mediaType?: 'audio' | 'video') => void;
+    createBreakoutRoom: (subject: string) => void;
+    joinBreakoutRoom: (roomJid: string) => void;
+    leaveBreakoutRoom: () => void;
+    renameBreakoutRoom: (roomJid: string, name: string) => void;
+    removeBreakoutRoom: (roomJid: string) => void;
+    sendToBreakoutRoom: (participantJid: string, roomJid: string) => void;
 }
 
-declare function JitsiProvider({ domain, roomName, userInfo, token, tenant, serviceUrl: serviceUrlProp, connectionOptions: connectionOptionsProp, configOverwrite, autoJoin, devices, onConferenceJoined, onConferenceLeft, onParticipantJoined, onParticipantLeft, onMessageReceived, onError, onConnectionStatusChanged, virtualBackgroundEffects, children, }: JitsiProviderProps): react_jsx_runtime.JSX.Element;
+declare function JitsiProvider({ domain, roomName, userInfo, token, tenant, serviceUrl: serviceUrlProp, connectionOptions: connectionOptionsProp, configOverwrite, autoJoin, devices, onConferenceJoined, onConferenceLeft, onParticipantJoined, onParticipantLeft, onMessageReceived, onError, onConnectionStatusChanged, virtualBackgroundEffects, noiseSuppressionEffect, children, }: JitsiProviderProps): react_jsx_runtime.JSX.Element;
 
 /**
  * Public hook to access the Jitsi conference state and actions.
@@ -411,6 +459,7 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
     showSettings?: boolean;
     /** Component to render inside the grid when the whiteboard is active */
     whiteboardComponent?: React.ReactNode;
+    noiseSurpressionEffect?: TrackEffect;
 }
 /**
  * A pre-built, fully-featured meeting UI that uses all SDK components.
@@ -418,7 +467,7 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
  *
  * @example
  * ```tsx
- * import { JitsiMeeting } from '@gbielbarbosa/react-jitsi';
+ * import {JitsiMeeting} from '@gbielbarbosa/react-jitsi';
  * import "@gbielbarbosa/react-jitsi/styles.css";
  *
  * function App() {
@@ -433,7 +482,7 @@ interface JitsiMeetingProps extends Omit<JitsiProviderProps, 'children'> {
  * }
  * ```
  */
-declare function JitsiMeeting({ title, height, showSidebar, showSettings, whiteboardComponent, ...providerProps }: JitsiMeetingProps): react_jsx_runtime.JSX.Element;
+declare function JitsiMeeting({ title, height, showSidebar, showSettings, whiteboardComponent, noiseSuppressionEffect, ...providerProps }: JitsiMeetingProps): react_jsx_runtime.JSX.Element;
 
 interface SlotProps extends React$1.HTMLAttributes<HTMLElement> {
     children: React$1.ReactElement;
@@ -534,6 +583,13 @@ declare function VideoLayout({ className, style, whiteboardComponent }: VideoLay
  * ```
  */
 declare function AudioTrack(): null;
+
+interface BreakoutRoomsProps {
+    className?: string;
+    style?: React.CSSProperties;
+    children?: (rooms: JitsiRoom[] | null, create: (subject: string) => void, rename: (roomJid: string, subject: string) => void, join: (roomJid: string) => void, leave: () => void, send: (participantJid: string, roomJid: string) => void, remove: (roomJid: string) => void) => React.ReactNode;
+}
+declare function BreakoutRooms({ className, style, children }: BreakoutRoomsProps): react_jsx_runtime.JSX.Element | undefined;
 
 interface ToggleAudioProps {
     /** CSS class name */
@@ -640,6 +696,17 @@ interface ToggleMirrorProps {
  * Toggle local video mirror on/off.
  */
 declare function ToggleMirror({ className, style, asChild, children }: ToggleMirrorProps): react_jsx_runtime.JSX.Element;
+
+interface VideoControlsOverlayProps {
+    participant: Participant;
+    videoMode?: 'grid' | 'floating';
+    setVideoMode?: (mode: 'grid' | 'floating') => void;
+    isPinned: boolean;
+    onTogglePin: () => void;
+    objectFit: 'cover' | 'contain';
+    onToggleFit: () => void;
+}
+declare function VideoControlsOverlay({ participant, videoMode, setVideoMode, isPinned, onTogglePin, objectFit, onToggleFit, }: VideoControlsOverlayProps): react_jsx_runtime.JSX.Element;
 
 interface VirtualBackgroundProps {
     className?: string;
@@ -806,7 +873,7 @@ interface WhiteboardProps {
      * Callback fired when whiteboard data is received from other participants.
      * Use this to feed data into your external whiteboard library (e.g., Excalidraw, tldraw).
      */
-    onDataReceived?: (data: WhiteboardData) => void;
+    onDataReceived?: (data: WhiteboardData | null) => void;
     /**
      * Render prop giving full control.
      */
@@ -933,6 +1000,14 @@ interface ConnectionStatusProps {
  */
 declare function ConnectionStatus({ className, style, children }: ConnectionStatusProps): react_jsx_runtime.JSX.Element;
 
+interface ToggleParticipantsProps {
+    className?: string;
+    style?: React$1.CSSProperties;
+    asChild?: boolean;
+    children?: React$1.ReactElement | ((isOpen: boolean, toggle: () => void, participantsCount: number) => React$1.ReactNode);
+}
+declare function ToggleParticipants({ className, style, asChild, children }: ToggleParticipantsProps): react_jsx_runtime.JSX.Element;
+
 interface ParticipantListProps {
     /** CSS class name */
     className?: string;
@@ -988,6 +1063,13 @@ interface ConnectionIndicatorProps {
  */
 declare function ConnectionIndicator({ participant, stats, className, style, children }: ConnectionIndicatorProps): react_jsx_runtime.JSX.Element;
 
+interface TimerProps {
+    className?: string;
+    style?: React.CSSProperties;
+    children?: (seconds: number) => React.ReactNode;
+}
+declare function Timer({ className, style, children }: TimerProps): react_jsx_runtime.JSX.Element | null;
+
 interface AdminControlsProps {
     /** The participant to control */
     participantId: string;
@@ -1019,6 +1101,8 @@ interface MuteAllButtonProps {
  */
 declare function MuteAllButton({ className, style, mediaType, asChild, children }: MuteAllButtonProps): react_jsx_runtime.JSX.Element | null;
 
+declare const ProgressIcon: () => react_jsx_runtime.JSX.Element;
+declare const CloseIcon: () => react_jsx_runtime.JSX.Element;
 declare const MicOnIcon: () => react_jsx_runtime.JSX.Element;
 declare const MicOffIcon: () => react_jsx_runtime.JSX.Element;
 /** Smaller variant for participant lists and overlays */
@@ -1041,6 +1125,7 @@ declare const MirrorIcon: () => react_jsx_runtime.JSX.Element;
 declare const RecordIcon: () => react_jsx_runtime.JSX.Element;
 declare const StopRecordIcon: () => react_jsx_runtime.JSX.Element;
 declare const CaptionsIcon: () => react_jsx_runtime.JSX.Element;
+declare const ParticipantsIcon: () => react_jsx_runtime.JSX.Element;
 declare const PollIcon: () => react_jsx_runtime.JSX.Element;
 declare const NoiseIcon: () => react_jsx_runtime.JSX.Element;
 declare const WhiteboardIcon: () => react_jsx_runtime.JSX.Element;
@@ -1056,5 +1141,10 @@ declare const FullscreenExit: () => react_jsx_runtime.JSX.Element;
 declare const MoreHorizontal: () => react_jsx_runtime.JSX.Element;
 declare const MoreVertical: () => react_jsx_runtime.JSX.Element;
 declare const Settings: () => react_jsx_runtime.JSX.Element;
+declare const BlockIcon: () => react_jsx_runtime.JSX.Element;
+declare const AddModeratorIcon: () => react_jsx_runtime.JSX.Element;
+declare const ChevronRight: () => react_jsx_runtime.JSX.Element;
+declare const CheckMark: () => react_jsx_runtime.JSX.Element;
+declare const Pencil: () => react_jsx_runtime.JSX.Element;
 
-export { AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Settings, Slot, StopRecordIcon, StopShareIcon, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, VirtualBackgroundSelector, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };
+export { AddModeratorIcon, AdminControls, AudioOutputSelector, AudioTrack, BackgroundIcon, BlockIcon, BreakoutRooms, type CaptionEntry, Captions, CaptionsIcon, ChatIcon, ChatInput, type ChatMessage, ChatMessages, ChatPanel, CheckMark, ChevronRight, CloseIcon, type ConferenceOptions, type ConferenceStatus, ConnectionIndicator, type ConnectionOptions, ConnectionStatus, type ConnectionStatus$1 as ConnectionStatusType, DeviceSelector, EmptyRoomIcon, Fullscreen, FullscreenExit, Grid, GridOff, type JitsiConference, type JitsiConnection, type JitsiContextValue, type JitsiLocalTrack, JitsiMeeting, JitsiProvider, type JitsiProviderProps, type JitsiRemoteTrack, type JitsiTrack, LeaveButton, LocalVideo, MicMutedOverlayIcon, MicMutedSmallIcon, MicOffIcon, MicOnIcon, MirrorIcon, MoreHorizontal, MoreVertical, MuteAllButton, NoiseIcon, type Participant, ParticipantList, type ParticipantStats, ParticipantStatsPanel, type ParticipantStatsPanelProps, ParticipantsIcon, Pencil, PerformanceSettings, PhoneOffIcon, Pin, PinOff, PinOverlay, type Poll, PollCreator, PollDisplay, PollIcon, type PollOption, ProgressIcon, RecordIcon, RecordingIndicator, type RecordingOptions, type RecordingSession, RemoteVideos, ScreenShareButton, ScreenShareIcon, type ScreenShareOptions, Settings, Slot, StopRecordIcon, StopShareIcon, Timer, ToggleAudio, ToggleCaptions, ToggleChat, ToggleMirror, ToggleNoiseSuppression, ToggleParticipants, TogglePolls, ToggleRecording, ToggleVideo, ToggleWhiteboard, type TrackEffect, type TrackInfo, type UserInfo, VideoControlsOverlay, VideoLayout, VideoMutedSmallIcon, VideoOffIcon, VideoOnIcon, VirtualBackground, type VirtualBackgroundConfig, VirtualBackgroundSelector, type VirtualBackgroundType, Whiteboard, type WhiteboardData, WhiteboardIcon, useJitsi };

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useJitsiContext } from '../JitsiContext';
 import { Slot } from '../utils/Slot';
-import { NoiseIcon } from '../icons';
 import type { TrackEffect } from '../types';
 
 export interface ToggleNoiseSuppressionProps {
@@ -32,7 +31,7 @@ export interface ToggleNoiseSuppressionProps {
  * ```
  */
 export function ToggleNoiseSuppression({ className, style, asChild, children }: ToggleNoiseSuppressionProps) {
-  const { noiseSuppressionEnabled, setNoiseSuppression, toggleNoiseSuppression } = useJitsiContext();
+  const { noiseSuppressionEnabled, noiseSuppressionEffect, setNoiseSuppression, toggleNoiseSuppression } = useJitsiContext();
   const dataState = noiseSuppressionEnabled ? 'active' : 'off';
   const label = noiseSuppressionEnabled ? 'Disable noise suppression' : 'Enable noise suppression';
 
@@ -43,10 +42,9 @@ export function ToggleNoiseSuppression({ className, style, asChild, children }: 
   }
 
   return (
-    <button className={`rj-btn ${noiseSuppressionEnabled ? 'rj-btn--success' : 'rj-btn--active'} ${className || ''}`}
-      style={style}
-      onClick={toggleNoiseSuppression} data-state={dataState} title={label} aria-label={label} type="button">
-      <NoiseIcon />
-    </button>
+    <div style={{ display: "flex", gap: "5px" }}>
+      <input disabled={!noiseSuppressionEffect} id='rj-toggle-noise-suppression' type="checkbox" style={style} data-state={dataState} title={label} aria-label={label} checked={noiseSuppressionEnabled} onChange={(toggleNoiseSuppression)} />
+      <label className='rj-label' htmlFor="rj-toggle-noise-suppression">Enable noise suppression</label>
+    </div>
   );
 }

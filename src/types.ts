@@ -55,6 +55,7 @@ export interface ConnectionOptions {
     muc: string;
     anonymousdomain?: string;
     focus?: string;
+    breakoutMuc?: string;
   };
   serviceUrl: string;
   clientNode?: string;
@@ -79,6 +80,7 @@ export interface JitsiConnection {
 }
 
 export interface JitsiConference {
+  room?: JitsiChatRoom;
   on: (event: string, handler: (...args: any[]) => void) => void;
   off: (event: string, handler: (...args: any[]) => void) => void;
   join: (password?: string) => void;
@@ -107,6 +109,46 @@ export interface JitsiConference {
   startRecording: (options: RecordingOptions) => Promise<void>;
   stopRecording: (sessionId: string) => Promise<void>;
   setSubject: (subject: string) => void;
+  getName: () => string;
+  getBreakoutRooms: () => JitsiBreakoutRooms | undefined;
+}
+
+export interface JitsiBreakoutRooms {
+  room: JitsiChatRoom; // Current room
+  isBreakoutRoom: () => boolean;
+  createBreakoutRoom: (subject: string) => void;
+  renameBreakoutRoom: (roomJid: string, subject: string) => void;
+  removeBreakoutRoom: (roomJid: string) => void;
+  sendParticipantToRoom: (participantJid: string, roomJid: string) => void;
+}
+
+export interface JitsiChatRoom {
+  roomjid: string;
+  subject: string;
+  members: Record<string, JitsiChatRoomMember>;
+}
+
+export interface JitsiChatRoomMember {
+  affiliation?: string;
+  botType?: string;
+  displayName?: string;
+  id?: string;
+  isFocus?: boolean;
+  jid?: string;
+}
+
+export interface JitsiRoom {
+  id: string;
+  isMainRoom: boolean;
+  jid: string;
+  name?: string; // Subject | undefined if mainRoom
+  participants: {
+    [key: string]: {
+      displayName: string;
+      jid: string;
+      role: string;
+    }
+  }
 }
 
 export interface JitsiParticipant {
@@ -191,7 +233,7 @@ export interface RecordingSession {
 // ---------------------------------------------------------------------------
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'failed';
-export type ConferenceStatus = 'none' | 'joining' | 'joined' | 'left' | 'error';
+export type ConferenceStatus = 'none' | 'joining' | 'joined' | 'left' | 'error' | 'switching';
 
 export interface UserInfo {
   displayName?: string;
@@ -388,6 +430,7 @@ export interface JitsiProviderProps {
   onConnectionStatusChanged?: (status: ConnectionStatus) => void;
   /** Available virtual background options for the UI to render */
   virtualBackgroundEffects?: VirtualBackgroundEffect[];
+  noiseSuppressionEffect?: TrackEffect;
   /** React children */
   children: React.ReactNode;
 }
@@ -400,6 +443,7 @@ export interface JitsiContextValue {
   // Connection state
   connectionStatus: ConnectionStatus;
   conferenceStatus: ConferenceStatus;
+  conferenceStart: number | null;
 
   // Tracks
   localTracks: JitsiLocalTrack[];
@@ -431,6 +475,7 @@ export interface JitsiContextValue {
 
   // Noise suppression
   noiseSuppressionEnabled: boolean;
+  noiseSuppressionEffect: TrackEffect | null;
 
   // Virtual background
   virtualBackground: VirtualBackgroundConfig | null;
@@ -447,6 +492,9 @@ export interface JitsiContextValue {
   // Raw references (for advanced usage)
   connection: JitsiConnection | null;
   conference: JitsiConference | null;
+
+  // BreakoutRooms
+  breakoutRooms: JitsiRoom[] | null;
 
   // ----- Actions -----
 
@@ -489,7 +537,7 @@ export interface JitsiContextValue {
   toggleWhiteboard: () => void;
   getWhiteboardData: () => WhiteboardData | null;
   sendWhiteboardData: (data: WhiteboardData) => void;
-  onWhiteboardData: (handler: (data: WhiteboardData) => void) => () => void;
+  onWhiteboardData: (handler: (data: WhiteboardData | null) => void) => () => void;
 
   // Polls
   createPoll: (question: string, options: string[]) => void;
@@ -506,4 +554,12 @@ export interface JitsiContextValue {
   muteParticipant: (id: string, mediaType?: 'audio' | 'video') => void;
   grantModerator: (id: string) => void;
   muteAll: (mediaType?: 'audio' | 'video') => void;
+
+  // BreakoutRoom
+  createBreakoutRoom: (subject: string) => void;
+  joinBreakoutRoom: (roomJid: string) => void;
+  leaveBreakoutRoom: () => void;
+  renameBreakoutRoom: (roomJid: string, name: string) => void;
+  removeBreakoutRoom: (roomJid: string) => void;
+  sendToBreakoutRoom: (participantJid: string, roomJid: string) => void;
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useJitsiContext } from '../JitsiContext';
 import type { Participant } from '../types';
+import { AddModeratorIcon, BlockIcon, MicOffIcon, VideoOffIcon } from '../icons';
 
 export interface AdminControlsProps {
   /** The participant to control */
@@ -40,10 +41,20 @@ export function AdminControls({ participantId, className, style, children }: Adm
 
   return (
     <div className={`rj-admin-controls ${className || ''}`} style={style}>
-      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteAudio} title="Mute audio" type="button">Mute</button>
-      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteVideo} title="Mute video" type="button">No Video</button>
-      {participant.role !== "moderator" && <button className="rj-admin-btn rj-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">Promote</button>}
-      <button className="rj-admin-btn rj-admin-btn--kick" onClick={actions.kick} title="Kick participant" type="button">Kick</button>
+      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteAudio} title="Mute audio" type="button">
+        <MicOffIcon />
+      </button>
+      <button className="rj-admin-btn rj-admin-btn--mute" onClick={actions.muteVideo} title="Mute video" type="button">
+        <VideoOffIcon />
+      </button>
+      {participant.role !== "moderator" &&
+        <button className="rj-admin-btn rj-admin-btn--promote" onClick={actions.grantModerator} title="Make moderator" type="button">
+          <AddModeratorIcon />
+        </button>
+      }
+      <button className="rj-admin-btn rj-admin-btn--kick" onClick={actions.kick} title="Kick participant" type="button">
+        <BlockIcon />
+      </button>
     </div>
   );
 }
